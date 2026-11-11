@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Skyward · Airline Seat Reservation</title>
+  <meta name="description" content="Skyward - an airline seat reservation system: flights, seat maps, bookings, payments, baggage and more." />
+  <link rel="icon" type="image/svg+xml" href="img/favicon.svg" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script>
+    // apply the saved theme before first paint (no flash)
+    try { var t = localStorage.getItem('skyward-theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+  </script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <a class="brand" href="#/dashboard" aria-label="Skyward home">
+        <span class="brand-mark">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" style="transform:rotate(45deg)"><path d="M12 2.5c.9 0 1.6.9 1.6 2.1v4.8l7.4 4.4v2.2l-7.4-2.1v4.1l2 1.6v1.6L12 20.2 8.4 21.2v-1.6l2-1.6v-4.1L3 15.9v-2.2l7.4-4.4V4.6c0-1.2.7-2.1 1.6-2.1z"/></svg>
+        </span>
+        <span><div class="brand-name">Skyward</div><div class="brand-sub">Seat Reservation</div></span>
+      </a>
+      <nav class="nav" id="nav"></nav>
+      <div class="side-foot">
+        <div class="db-status"><span class="pulse off" id="dbPulse"></span><div><b id="dbName">Connecting…</b><span id="dbVer" style="color:#7f93bd">MySQL database</span></div></div>
+      </div>
+    </aside>
+    <div class="nav-scrim" id="navScrim"></div>
+
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu"></button>
+        <div class="crumb" id="crumb"></div>
+        <form class="pnr-find" id="pnrForm" autocomplete="off">
+          <span id="pnrIcon"></span>
+          <input id="pnrInput" type="search" placeholder="Find booking by PNR or name…" aria-label="Find booking by PNR" />
+        </form>
+        <button class="icon-btn" id="themeBtn" aria-label="Toggle theme" title="Toggle light / night theme"></button>
+        <a class="btn primary" href="#/book" id="topBook"></a>
+      </header>
+      <main class="content" id="view" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <script src="vendor/chart.umd.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

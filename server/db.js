@@ -4,7 +4,22 @@ const mysql = require('mysql2/promise');
 
 const DB_NAME = process.env.DB_NAME || 'AirlineReservationSystem';
 
+/*
+ * TLS for managed cloud MySQL (e.g. Aiven, which requires SSL).
+ *   DB_SSL=true      -> encrypt the connection
+ *   DB_SSL_CA=<PEM>  -> verify the server against this CA certificate (recommended);
+ *                       without it the connection is still encrypted but not verified.
+ * Local development leaves DB_SSL unset and connects without TLS.
+ */
+function sslConfig() {
+  const on = /^(1|true|yes|required)$/i.test(process.env.DB_SSL || '');
+  const ca = (process.env.DB_SSL_CA || '').replace(/\\n/g, '\n').trim();
+  if (!on && !ca) return undefined;
+  return ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: false };
+}
+
 const pool = mysql.createPool({
+  ssl: sslConfig(),
   host: process.env.DB_HOST || '127.0.0.1',
   port: Number(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'root',

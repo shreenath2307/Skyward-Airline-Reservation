@@ -2240,7 +2240,7 @@ UPDATE Passenger
 UPDATE Flight
    SET FlightStatus = 'Delayed'
  WHERE FlightStatus = 'Scheduled'
-   AND DepartureDate = (SELECT MIN(DepartureDate) FROM Flight WHERE FlightStatus = 'Scheduled');
+   AND DepartureDate = (SELECT min_d FROM (SELECT MIN(DepartureDate) AS min_d FROM Flight WHERE FlightStatus = 'Scheduled') AS tmp);
 
 UPDATE Booking
    SET TravelInsurance = TRUE

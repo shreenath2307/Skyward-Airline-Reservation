@@ -19,7 +19,8 @@ export function seatMapHTML(seats, { selectedId = null, manage = false, ticketPr
       last = cls;
     }
     const half = Math.ceil(rs.length / 2);
-    const btn = (s) => html`<button type="button" class="seat ${manage ? 'mgr' : ''} ${selectedId === s.SeatID ? 'sel' : ''}" data-seat="${s.SeatID}" data-cls="${s.SeatClass}" data-status="${s.SeatStatus}"
+    /* HCI-R5: in the booking wizard, booked / blocked seats are rendered disabled so they cannot be picked */
+  const btn = (s) => html`<button type="button" class="seat ${manage ? 'mgr' : ''} ${selectedId === s.SeatID ? 'sel' : ''}" data-seat="${s.SeatID}" data-cls="${s.SeatClass}" data-status="${s.SeatStatus}"
       ${!manage && s.SeatStatus !== 'Available' ? raw('disabled') : ''} aria-label="Seat ${s.SeatNumber}, ${s.SeatClass}, ${s.SeatStatus}" title="${s.SeatNumber} · ${s.SeatClass} · ${s.SeatStatus}"><span>${parse(s.SeatNumber)[1]}</span></button>`;
     out.push(html`<div class="srow"><div class="sgrp l">${rs.slice(0, half).map(btn)}</div><div class="rnum">${r}</div><div class="sgrp r">${rs.slice(half).map(btn)}</div></div>`);
   }

@@ -6,6 +6,7 @@ import { openDrawer, openModal, statusChip, tierChip, idChip, stars, kv, yesNo, 
 import { personAvatar, airlineAvatar, routeHTML, flightLabel, onChange, emitChange } from './common.js';
 import { editRecord, deleteRecord, cancelDialog, recordPayment, addBaggage } from './forms.js';
 import { ticketHTML } from './ticket.js';
+import { isPendingDelete, rememberBooking } from './hci.js';
 
 const MONEY = new Set(['TicketPrice', 'TotalFare', 'Discount', 'Tax', 'Amount', 'ConvenienceFee', 'GST', 'TotalAmount', 'RefundAmount', 'CancellationCharges', 'ExtraCharge', 'SeatPrice']);
 const sec = (title, body, count) => html`<section class="sec"><h4>${title}${count !== undefined ? html`<span class="count">${count}</span>` : ''}</h4>${body}</section>`;
@@ -91,10 +92,14 @@ export function openBooking(id) {
   const d = openDrawer({ eyebrow: 'Booking', title: '…', size: 'xl', content: skeletonRows(8), footer: ' ' });
   const bagRow = (g) => html`<tr><td><span class="mono">${g.TagNumber}</span><br><small class="muted">${g.BaggageType} · ${g.SpecialHandling}</small></td><td>${g.NumberOfBags}</td>
     <td>${g.BagWeight} / ${g.AllowedWeight} kg</td><td>${g.ExtraCharge ? money2(g.ExtraCharge) : '—'}</td><td>${statusChip(g.BaggageStatus)}</td>
-    <td class="right"><button class="icon-btn" data-act="edit-bag" data-id="${g.BaggageID}" aria-label="Edit">${icon('edit', 17)}</button><button class="icon-btn danger" data-act="del-bag" data-id="${g.BaggageID}" aria-label="Delete">${icon('trash', 17)}</button></td></tr>`;
+    <td class="right"><!-- HCI-R8: tooltips on icon buttons --><button class="icon-btn" data-act="edit-bag" data-id="${g.BaggageID}" aria-label="Edit bag" title="Edit bag">${icon('edit', 17)}</button><button class="icon-btn danger" data-act="del-bag" data-id="${g.BaggageID}" aria-label="Delete bag" title="Delete bag">${icon('trash', 17)}</button></td></tr>`;
 
   const render = () => {
-    const { booking: b, passenger: p, flight: f, seat: s, payment: pay, baggage, cancellation: c } = ov;
+    const { booking: b, passenger: p, flight: f, seat: s, payment: pay, cancellation: c } = ov;
+    const baggage = ov.baggage.filter((g) => !isPendingDelete('baggage', g.BaggageID));   // HCI-R6: hide bags waiting on Undo
+    /* HCI-R8: remember recently viewed bookings for the search dropdown */
+    rememberBooking({ id: b.BookingID, pnr: b.BookingReference, name: `${p.FirstName} ${p.LastName}`, route: `${f.FlightNumber} · ${f.SourceAirport} → ${f.DestinationAirport}` });
+
     setHead(d, 'Booking', html`<span class="pnr" style="font-size:.8em">${b.BookingReference}</span>`,
       html`${p.FirstName} ${p.LastName} · booked ${fdate(b.BookingDate)} at ${ftime(b.BookingTime)}`, statusChip(b.BookingStatus));
     d.setContent(html`

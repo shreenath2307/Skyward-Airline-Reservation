@@ -4,6 +4,8 @@ import { api, city } from '../api.js';
 import { statusChip, skeletonRows, stars, idChip } from '../ui.js';
 import { airlineAvatar, personAvatar, routeHTML, occBar, onChange, flightLabel } from '../common.js';
 import { openFlight, openBooking } from '../drawers.js';
+import { prefs } from '../prefs.js';
+import { openSettings } from '../hci.js';
 
 /* Original illustration: a stylised airliner crossing a sky with soft clouds + contrails */
 const heroArt = () => raw(`
@@ -49,7 +51,10 @@ export default async function render(root) {
     const todayLong = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
     mount(root, html`<div class="fade-in">
-      <section class="hero">
+      <!-- HCI-R7: dashboard is customisable (sections can be shown / hidden from Settings) -->
+      <div class="hci-dash-bar"><span class="muted">Overview · your dashboard</span><button type="button" class="btn sm ghost" data-customize title="Choose which dashboard sections are shown">${icon('gear', 16)}Customize dashboard</button></div>
+      <div class="hci-dash-empty" hidden>${icon('grid', 34)}<h4>All dashboard sections are hidden</h4><p>You turned every section off. Turn some back on in Settings.</p><button type="button" class="btn primary" data-customize>${icon('gear', 16)}Customize dashboard</button></div>
+      <section class="hero" data-dash="hero">
         <div class="hero-art">${heroArt()}</div>
         <div class="eyebrow">${greeting()} · ${todayLong}</div>
         <h1>Your seat <em>in the sky.</em></h1>
@@ -58,19 +63,19 @@ export default async function render(root) {
         <div class="stamp"><b>${fnum(kpi.openFlights)}</b>flights open for booking</div>
       </section>
 
-      <section class="kpis">
+      <section class="kpis" data-dash="kpis">
         <div class="kpi accent"><span class="bubble">${icon('receipt', 22)}</span><div class="lbl">Booked revenue</div><div class="val">${compactINR(kpi.bookedRevenue)}</div><div class="sub">${compactINR(kpi.collected)} collected so far</div></div>
         <div class="kpi"><span class="bubble">${icon('ticket', 22)}</span><div class="lbl">Active bookings</div><div class="val">${fnum(kpi.activeBookings)}</div><div class="sub">of ${fnum(kpi.totalBookings)} bookings in total</div></div>
         <div class="kpi"><span class="bubble">${icon('seat', 22)}</span><div class="lbl">Seat occupancy</div><div class="val">${occ}%</div><div class="bar" style="margin-top:12px"><i style="width:${occ}%"></i></div></div>
         <div class="kpi"><span class="bubble">${icon('users', 22)}</span><div class="lbl">Passengers</div><div class="val">${fnum(kpi.passengers)}</div><div class="sub">across ${fnum(kpi.flights)} scheduled flights</div></div>
       </section>
 
-      <div class="grid g-main">
+      <div class="grid g-main" data-dash="charts">
         <section class="card"><div class="card-head"><div><h3>Bookings over time</h3><div class="sub">Number of reservations made each month</div></div></div><div class="chart-box"><canvas id="chMonth"></canvas></div></section>
         <section class="card"><div class="card-head"><div><h3>Booking status</h3><div class="sub">Where every reservation stands</div></div></div><div class="chart-box"><canvas id="chStatus"></canvas></div></section>
       </div>
 
-      <div class="grid g-main" style="margin-top:20px">
+      <div class="grid g-main" style="margin-top:20px" data-dash="ops">
         <section class="card"><div class="card-head"><div><h3>${upcomingLabel}</h3><div class="sub">Click a flight to see occupancy, revenue and bookings</div></div><a class="btn sm right-act" href="#/flights">All flights ${icon('arrowR', 15)}</a></div>
           <div class="list" style="margin-top:14px">${upcoming.map((f) => html`<div class="li click" data-flight="${f.FlightID}">
             ${airlineAvatar(f.AirlineName)}<div class="grow"><div class="t1">${f.FlightNumber} · ${routeHTML(f.SourceAirport, f.DestinationAirport)}</div><div class="t2">${city(f.SourceAirport) || ''} → ${city(f.DestinationAirport) || ''} · ${fdate(f.DepartureDate)} at ${ftime(f.DepartureTime)}</div></div>
@@ -87,7 +92,7 @@ export default async function render(root) {
           <div style="padding:0 24px 22px"><div class="callout">${icon('info', 18)}<div class="t">Pending refunds total <b>${money(kpi.pendingRefunds)}</b>.</div></div></div></section>
       </div>
 
-      <div class="grid g3" style="margin-top:20px">
+      <div class="grid g3" style="margin-top:20px" data-dash="highlights">
         <section class="card"><div class="card-head"><div><h3>Revenue by airline</h3><div class="sub">Active bookings, ₹</div></div></div><div class="chart-box sm"><canvas id="chAirline"></canvas></div></section>
         <section class="card"><div class="card-head"><div><h3>Latest bookings</h3><div class="sub">Most recent reservations</div></div><a class="btn sm right-act" href="#/bookings">View all</a></div>
           <div class="list" style="margin-top:12px">${recent.map((b) => html`<div class="li click" data-booking="${b.BookingID}">${personAvatar(b.PassengerName)}
@@ -99,7 +104,18 @@ export default async function render(root) {
       </div>
     </div>`);
     drawCharts(d);
+    applyLayout();
   };
+
+  /* HCI-R7: apply the user's dashboard layout (hidden sections) — live, without reloading */
+  function applyLayout() {
+    const hidden = new Set(prefs.dashHidden);
+    const secs = [...root.querySelectorAll('[data-dash]')];
+    secs.forEach((el) => { el.hidden = hidden.has(el.dataset.dash); });
+    const empty = root.querySelector('.hci-dash-empty');
+    if (empty) empty.hidden = secs.some((el) => !el.hidden);
+    charts.forEach((c) => { try { c.resize(); } catch (_) { /* hidden */ } });
+  }
 
   function drawCharts(d) {
     charts.forEach((c) => c.destroy()); charts = [];
@@ -126,9 +142,11 @@ export default async function render(root) {
 
   on(root, 'click', '[data-flight]', (e, el) => openFlight(el.dataset.flight));
   on(root, 'click', '[data-booking]', (e, el) => openBooking(el.dataset.booking));
+  on(root, 'click', '[data-customize]', (e) => { e.stopPropagation(); openSettings(); });
   try { await draw(); } catch (e) { mount(root, html`<div class="card card-pad">${e.message}</div>`); }
   const off = onChange(() => draw().catch(() => {}));
   const onTheme = () => draw().catch(() => {});
   window.addEventListener('themechange', onTheme);
-  return () => { alive = false; off(); window.removeEventListener('themechange', onTheme); charts.forEach((c) => c.destroy()); };
+  window.addEventListener('skyward:prefs', applyLayout);
+  return () => { alive = false; off(); window.removeEventListener('themechange', onTheme); window.removeEventListener('skyward:prefs', applyLayout); charts.forEach((c) => c.destroy()); };
 }

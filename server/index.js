@@ -16,7 +16,12 @@ app.use('/api', require('./routes/crud'));
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
 // Front-end
-app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'], maxAge: '1h' }));
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  extensions: ['html'],
+  maxAge: '1h',
+  // HTML/JS/CSS revalidate on every load so updates are never served stale; images/fonts/vendor stay cached
+  setHeaders: (res, file) => { if (/\.(html|js|css)$/.test(file) && !/[\\/]vendor[\\/]/.test(file)) res.setHeader('Cache-Control', 'no-cache'); },
+}));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 
 // Errors -> tidy JSON

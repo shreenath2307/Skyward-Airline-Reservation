@@ -28,12 +28,12 @@ export default async function render(root) {
   function drawCharts(d) {
     charts.forEach((c) => c.destroy()); charts = [];
     const C = window.Chart; if (!C) return;
-    C.defaults.font.family = "'Inter', system-ui, sans-serif"; C.defaults.color = css('--muted');
-    const grid = css('--line'); const tip = { backgroundColor: '#0b1730', padding: 12, cornerRadius: 10, displayColors: false };
+    C.defaults.font.family = "'Montserrat', system-ui, sans-serif"; C.defaults.color = css('--muted');
+    const grid = css('--line'); const tip = { backgroundColor: css('--text'), titleColor: css('--bg'), bodyColor: css('--bg'), padding: 10, cornerRadius: 8, displayColors: false };
     const occ = d.occupancy;
-    charts.push(new C($('#chOcc', root), { type: 'bar', data: { labels: occ.map((o) => o.FlightNumber), datasets: [{ data: occ.map((o) => Number(o.OccupancyPercent)), backgroundColor: css('--primary'), borderRadius: 8, borderSkipped: false, maxBarThickness: 30 }] },
+    charts.push(new C($('#chOcc', root), { type: 'bar', data: { labels: occ.map((o) => o.FlightNumber), datasets: [{ data: occ.map((o) => Number(o.OccupancyPercent)), backgroundColor: css('--primary'), borderRadius: 4, borderSkipped: false, maxBarThickness: 26 }] },
       options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { ...tip, callbacks: { label: (c) => ` ${c.parsed.y}% full` } } }, scales: { x: { grid: { display: false }, border: { display: false } }, y: { beginAtZero: true, max: 100, grid: { color: grid }, border: { display: false }, ticks: { callback: (v) => `${v}%` } } } } }));
-    const pal = ['#0b5fff', '#26b6e8', '#7a5af8', '#f5a623', '#17a99b'];
+    const pal = [css('--primary'), css('--sky-light'), css('--taupe'), '#c9b490', css('--text')];
     charts.push(new C($('#chPay', root), { type: 'doughnut', data: { labels: d.payments.map((p) => p.label), datasets: [{ data: d.payments.map((p) => Number(p.amount)), backgroundColor: pal, borderWidth: 3, borderColor: css('--surface'), hoverOffset: 6 }] },
       options: { maintainAspectRatio: false, cutout: '68%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 14, boxWidth: 8 } }, tooltip: { ...tip, callbacks: { label: (c) => ` ${c.label}: ${compactINR(c.parsed)}` } } } } }));
   }

@@ -3,7 +3,8 @@ import { html, raw, initials, fdate, ftime, bus } from './util.js';
 import { icon } from './icons.js';
 import { city } from './api.js';
 
-const AIRLINE_COLORS = ['#0b5fff', '#0f9d8a', '#6a4df0', '#e0562b', '#0a8bd1', '#c2336b', '#2f7d32', '#a86a00', '#3b4cca', '#00828f'];
+/* muted brand-family tones; every one keeps white initials above 4.5:1 */
+const AIRLINE_COLORS = ['#015AA9', '#312726', '#2f5d73', '#6b4f3a', '#013f78', '#5a5048', '#3f5c8a', '#7a4b3c', '#1f4e5f', '#4d5b3c'];
 export function colorFor(str) {
   let h = 0; for (const c of String(str || '?')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return AIRLINE_COLORS[h % AIRLINE_COLORS.length];

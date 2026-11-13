@@ -7,6 +7,8 @@ import { airlineAvatar, personAvatar, routeHTML, emitChange } from '../common.js
 import { seatMapHTML, legendHTML, seatInfoHTML } from '../seatmap.js';
 import { ticketHTML } from '../ticket.js';
 import { showTicket, openBooking } from '../drawers.js';
+import { prefs } from '../prefs.js';
+import { markTouched } from '../hci.js';
 
 const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const STEPS = ['Flight', 'Seat', 'Passenger', 'Details', 'Review'];
@@ -52,18 +54,21 @@ export default async function render(root, params = {}) {
   };
 
   /* ---------------- summary side panel ---------------- */
+  /* HCI-R8: persistent trip summary — flight, seat, passenger and price stay visible on every step */
+  const pending = (txt) => html`<span class="hci-sum-pending">${txt}</span>`;
   const drawSide = () => {
     if (S.done) { side.innerHTML = ''; return; }
     const f = S.flight; const c = calc();
     const p = S.pMode === 'existing' ? (S.passengerItem && S.passengerItem.label) : (S.newForm && `${S.newForm.vals.FirstName || ''} ${S.newForm.vals.LastName || ''}`.trim());
     side.innerHTML = String(html`
-      <section class="card sum ${c && S.step >= 4 ? 'accent' : ''}"><h4>Trip summary</h4>
+      <section class="card sum hci-sum ${c && S.step >= 4 ? 'accent' : ''}" aria-label="Trip summary" aria-live="polite"><h4>Trip summary <small class="hci-sum-step">Step ${S.step} of ${STEPS.length}</small></h4>
         ${f ? html`<div class="mini-route"><div><div class="cd">${f.SourceAirport}</div></div><div class="grow" style="text-align:center">${icon('plane', 22, 'rot90')}</div><div style="text-align:right"><div class="cd">${f.DestinationAirport}</div></div></div>
           <div class="sum-line"><span>Flight</span><span>${f.FlightNumber} · ${f.AirlineName}</span></div>
           <div class="sum-line"><span>Departs</span><span>${fdate(f.DepartureDate, { noYear: true })} · ${ftime(f.DepartureTime)}</span></div>`
-        : html`<div class="sum-empty">Choose a flight to begin.</div>`}
-        ${S.seat ? html`<div class="sum-line"><span>Seat</span><span><b>${S.seat.SeatNumber}</b> · ${S.seat.SeatClass}</span></div>` : ''}
-        ${p ? html`<div class="sum-line"><span>Passenger</span><span>${p}</span></div>` : ''}
+        : html`<div class="sum-line"><span>Flight</span>${pending('Not chosen yet')}</div>`}
+        <div class="sum-line"><span>Seat</span>${S.seat ? html`<span><b>${S.seat.SeatNumber}</b> · ${S.seat.SeatClass}</span>` : pending('Not chosen yet')}</div>
+        <div class="sum-line"><span>Passenger</span>${p ? html`<span>${p}</span>` : pending('Not chosen yet')}</div>
+        ${c ? '' : html`<div class="sum-line"><span>Price</span>${pending('Shown once a seat is picked')}</div>`}
         ${c ? html`<div style="height:6px"></div>
           <div class="sum-line"><span>Base fare${S.pax > 1 ? ` × ${S.pax}` : ''}</span><span>${money2(c.base)}</span></div>
           ${c.disc ? html`<div class="sum-line disc"><span>Coupon ${S.couponInfo.code}</span><span>− ${money2(c.disc)}</span></div>` : ''}
@@ -98,14 +103,14 @@ export default async function render(root, params = {}) {
   const drawStep1 = () => {
     const f = S.filters;
     const opts = (list, sel) => list.map((a) => html`<option value="${a}" ${a === sel ? 'selected' : ''}>${a}${city(a) ? ` — ${city(a)}` : ''}</option>`);
-    main.innerHTML = String(html`<div class="step-title"><h2>Where is the passenger <em>flying</em>?</h2></div>
+    main.innerHTML = String(html`<div class="step-title"><h2>Where is the passenger <em>flying</em>?</h2><p>Select a flight, then press <b>Continue</b>. Nothing moves on until you say so.</p></div>
       <section class="card"><form class="fsearch" id="fform">
         <div class="field"><label>From</label><select name="from"><option value="">Any airport</option>${opts(S.airports, f.from)}</select></div>
         <div class="field"><label>To</label><select name="to"><option value="">Any airport</option>${opts(S.airports, f.to)}</select></div>
         <div class="field"><label>Departure date</label><input type="date" name="date" value="${f.date}"/></div>
         <div class="field"><label>Airline</label><select name="airline"><option value="">All airlines</option>${(store.meta.lists.airlines || []).map((a) => html`<option ${a === f.airline ? 'selected' : ''}>${a}</option>`)}</select></div>
         <button type="button" class="btn ghost" id="clearF" style="height:44px">${icon('x', 16)}Clear</button></form></section>
-      <div id="flights"></div>`);
+      <div id="flights"></div>${navButtons(false, !!S.flight, 'Select a flight to continue')}`);
     drawFlightsList();
   };
 
@@ -119,7 +124,7 @@ export default async function render(root, params = {}) {
     const d = S.seatsData; const f = S.flight;
     main.innerHTML = String(html`<div class="step-title"><h2>Choose the <em>seat</em></h2><p>${f.FlightNumber} · ${f.SourceAirport} → ${f.DestinationAirport} · ${fdate(f.DepartureDate)}</p></div>
       <div class="seat-layout"><section class="card">${d ? html`${seatMapHTML(d.seats, { selectedId: S.seat && S.seat.SeatID })}${legendHTML()}` : skeletonRows(8)}</section>
-      <div id="seatinfo">${seatInfoHTML(S.hover || S.seat, f)}</div></div>${navButtons(true, !!S.seat)}`);
+      <div id="seatinfo">${seatInfoHTML(S.hover || S.seat, f)}</div></div>${navButtons(true, !!S.seat, 'Pick an available seat to continue')}`);
   };
 
   /* ================= STEP 3: passenger ================= */
@@ -127,19 +132,29 @@ export default async function render(root, params = {}) {
     main.innerHTML = String(html`<div class="step-title"><h2>Who is <em>travelling</em>?</h2></div>
       <section class="card sect"><div class="seg" id="pmode" style="max-width:420px;margin-bottom:20px"><button type="button" data-pm="existing" class="${S.pMode === 'existing' ? 'on' : ''}">${icon('search', 16)} Existing passenger</button>
         <button type="button" data-pm="new" class="${S.pMode === 'new' ? 'on' : ''}">${icon('plus', 16)} New passenger</button></div>
-        <div id="pbody"></div></section>${navButtons(true, true)}`);
+        <div id="pbody"></div></section>${navButtons(true, canNext3(), 'Select or register the passenger to continue')}`);
     const body = $('#pbody', root);
     if (S.pMode === 'existing') {
       body.innerHTML = String(html`<label class="lbl">Search by name, email, phone or passport</label><div id="pcombo"></div><div id="pprofile"></div>`);
       if (passengerCombo) passengerCombo.destroy();
       passengerCombo = combo($('#pcombo', root), { kind: 'passengers', value: S.passengerId, label: S.passengerItem && S.passengerItem.label, placeholder: 'Start typing a passenger name…',
-        onChange: async (id, item) => { S.passengerId = id; S.passengerItem = item; S.passengerRow = null; drawProfile(); drawSide(); if (id) { try { S.passengerRow = await api.get(`/passengers/${id}`); drawProfile(); } catch (_) { /* ignore */ } } } });
+        onChange: async (id, item) => { S.passengerId = id; S.passengerItem = item; S.passengerRow = null; drawProfile(); drawSide(); syncNext(); if (id) { try { S.passengerRow = await api.get(`/passengers/${id}`); drawProfile(); } catch (_) { /* ignore */ } } } });
       drawProfile();
     } else {
-      if (!S.newForm) S.newForm = buildForm('passengers', { mode: 'create', collapse: ['Loyalty programme'], onChange: () => drawSide() });
+      if (!S.newForm) S.newForm = buildForm('passengers', { mode: 'create', collapse: ['Loyalty programme'], onChange: () => drawSide(), onValidity: () => syncNext() });
       body.appendChild(S.newForm.el);
     }
+    syncNext();
   };
+  /* HCI-R5: Continue is only enabled when the current step is complete */
+  function canNext3() { return S.pMode === 'existing' ? !!S.passengerId : !!(S.newForm && S.newForm.isValid()); }
+  const canNext4 = () => !S.bagOn || (S.bag.weight !== '' && Number(S.bag.weight) >= 0 && Number(S.bag.weight) <= 200);
+  function syncNext() {
+    const b = $('[data-next]', root); if (!b) return;
+    const ok = S.step === 1 ? !!S.flight : S.step === 2 ? !!S.seat : S.step === 3 ? canNext3() : S.step === 4 ? canNext4() : true;
+    b.disabled = !ok;
+    const h = $('.wiz-hint', root); if (h) h.hidden = ok;
+  }
   const drawProfile = () => {
     const box = $('#pprofile', root); if (!box) return;
     const p = S.passengerRow;
@@ -164,7 +179,7 @@ export default async function render(root, params = {}) {
         <div style="margin-top:18px"><span class="lbl">Booking channel</span><div class="choices">${CHANNELS.map(([n, ic]) => html`<button type="button" class="choice ${S.channel === n ? 'on' : ''}" data-channel="${n}">${icon(ic, 20)}<b>${n}</b></button>`)}</div></div>
         <div class="two" style="margin-top:18px"><div><span class="lbl">Coupon code</span><div class="coupon-row"><input class="inp" id="coupon" value="${S.coupon}" placeholder="Enter code" maxlength="20"/><button type="button" class="btn" id="applyCoupon">Apply</button></div>
           <div class="coupon-chips">${Object.keys(P.COUPONS).map((k) => html`<button type="button" data-coupon="${k}" title="${P.COUPONS[k].label}">${k} · ${P.COUPONS[k].pct}%</button>`)}</div>
-          ${S.couponInfo ? html`<div class="applied">${icon('check', 16)}${S.couponInfo.code} — ${S.couponInfo.pct}% off (${S.couponInfo.label})</div>` : ''}</div>
+          ${S.couponInfo ? html`<div class="applied">${icon('check', 16)}${S.couponInfo.code} — ${S.couponInfo.pct}% off (${S.couponInfo.label}) <button type="button" class="linkish" id="removeCoupon" title="Remove this coupon">Remove</button></div>` : ''}</div>
           <div><span class="lbl">Booked by</span><input class="inp" id="createdBy" value="${S.createdBy}" maxlength="50" placeholder="Agent or system name"/>
             <div style="margin-top:16px"><label class="switch"><input type="checkbox" id="insurance" ${S.insurance ? 'checked' : ''}/><i></i><span class="switch-text">Travel insurance</span></label></div></div></div>
         <div class="fhint" style="margin-top:14px">Booking date &amp; time (<b>${fdate(todayStr())}</b>) are recorded automatically.</div></section>
@@ -180,15 +195,15 @@ export default async function render(root, params = {}) {
 
       <section class="card sect"><div class="sect-head"><span class="badge-ic">${icon('bag', 22)}</span><div><h3>Baggage</h3><p>Optional — free allowance for ${S.seat.SeatClass} is <b>${P.FREE_BAGGAGE_KG[S.seat.SeatClass] ?? 20} kg</b>.</p></div>
         <label class="switch right-act"><input type="checkbox" id="bagOn" ${S.bagOn ? 'checked' : ''}/><i></i><span class="switch-text">${S.bagOn ? 'Add baggage' : 'No baggage'}</span></label></div>
-        ${S.bagOn ? html`<div class="three"><div><span class="lbl">Number of bags</span>${stepper('bagCount', bg.count)}</div><div><span class="lbl">Total weight (kg)</span><input class="inp" id="bagW" type="number" step="0.1" min="0" value="${bg.weight}" placeholder="e.g. 23.5"/></div>
-            <div><span class="lbl">Allowed weight (kg)</span><input class="inp" id="bagA" type="number" step="0.5" min="0" value="${bg.allowed === '' ? c.allowed : bg.allowed}"/></div></div>
+        ${S.bagOn ? html`<div class="three"><div><span class="lbl">Number of bags</span>${stepper('bagCount', bg.count)}</div><div><span class="lbl">Total weight (kg) <span class="req">*</span></span><input class="inp" id="bagW" type="number" step="0.1" min="0" max="200" value="${bg.weight}" placeholder="e.g. 23.5" aria-required="true"/></div>
+            <div><span class="lbl">Allowed weight (kg)</span><input class="inp" id="bagA" type="number" step="0.5" min="0" max="100" value="${bg.allowed === '' ? c.allowed : bg.allowed}"/></div></div>
           <div class="three" style="margin-top:18px"><div><span class="lbl">Type</span>${seg('bagType', ['Checked', 'Cabin'], bg.type)}</div><div><span class="lbl">Special handling</span>${seg('bagHandling', ['None', 'Fragile', 'Priority'], bg.handling)}</div>
             <div><span class="lbl">Check-in time</span><input class="inp" id="bagT" type="time" value="${bg.time}"/></div></div>
           <div class="three" style="margin-top:18px"><div><span class="lbl">Baggage status</span><select class="inp" id="bagS">${['Checked-In', 'Loaded', 'In Transit', 'Delivered', 'Lost'].map((o) => html`<option ${o === bg.status ? 'selected' : ''}>${o}</option>`)}</select></div>
             <div><span class="lbl">Collection</span>${seg('bagCollect', ['Not Collected', 'Collected'], bg.collection)}</div>
             <div><span class="lbl">Excess charge</span><div class="inp" id="bagX" style="display:flex;align-items:center;background:var(--surface-3)">${c.extraKg ? `${c.extraKg} kg over · ${money2(c.extraCharge)}` : 'None — within allowance'}</div></div></div>
           <div class="fhint" style="margin-top:12px">The tag number is generated automatically (next in sequence). Excess baggage is billed at ₹${P.EXCESS_BAGGAGE_RATE} per extra kg.</div>` : ''}</section>
-      ${navButtons(true, true)}`);
+      ${navButtons(true, canNext4(), 'Enter the bag weight (0–200 kg) or switch baggage off')}`);
   };
 
   /* ================= STEP 5: review ================= */
@@ -208,38 +223,55 @@ export default async function render(root, params = {}) {
   };
 
   /* ================= DONE ================= */
+  /* HCI-R4: closure — a dedicated "Booking confirmed" screen with PNR, seat, amount and clear next steps */
   const drawDone = () => {
     const ov = S.done;
-    main.innerHTML = String(html`<div class="done-hero"><div class="tick">${icon('check', 38)}</div><h2>Booking <em style="color:var(--primary)">confirmed</em></h2>
+    const paid = ov.payment ? ov.payment.TotalAmount : ov.booking.TotalFare;
+    main.innerHTML = String(html`<div class="done-hero" role="status" aria-live="polite"><div class="tick">${icon('check', 38)}</div><h2>Booking <em style="color:var(--primary)">confirmed</em></h2>
       <p>Seat <b>${ov.seat.SeatNumber}</b> on ${ov.flight.FlightNumber} is reserved for <b>${ov.passenger.FirstName} ${ov.passenger.LastName}</b>. PNR <span class="pnr">${ov.booking.BookingReference}</span>${ov.payment ? html` · invoice <span class="mono">${ov.payment.InvoiceNumber}</span>` : ''}.</p></div>
+      <dl class="kvs c3 hci-done-sum no-print">
+        <div class="kv"><dt>PNR</dt><dd><span class="pnr">${ov.booking.BookingReference}</span></dd></div>
+        <div class="kv"><dt>Flight</dt><dd>${ov.flight.FlightNumber} · ${routeHTML(ov.flight.SourceAirport, ov.flight.DestinationAirport)}</dd></div>
+        <div class="kv"><dt>Seat</dt><dd><b>${ov.seat.SeatNumber}</b> · ${ov.seat.SeatClass}</dd></div>
+        <div class="kv"><dt>${ov.payment ? 'Amount charged' : 'Total fare (unpaid)'}</dt><dd><b>${money2(paid)}</b></dd></div>
+        <div class="kv"><dt>Status</dt><dd>${statusChip(ov.booking.BookingStatus)}</dd></div>
+        <div class="kv"><dt>Payment</dt><dd>${ov.payment ? html`${ov.payment.PaymentMethod} · ${statusChip(ov.payment.PaymentStatus)}` : 'Pay later'}</dd></div></dl>
       ${ticketHTML(ov)}
-      <div class="row wrap no-print" style="justify-content:center;margin-top:26px;gap:12px"><button class="btn primary lg" id="printT">${icon('print', 20)}Print ticket</button><button class="btn lg" id="viewB">${icon('receipt', 20)}View booking</button><button class="btn lg" id="again">${icon('plus', 20)}Book another</button></div>`);
+      <div class="wiz-nav no-print hci-done-actions"><button class="btn lg" id="again">${icon('plus', 20)}Book another</button><button class="btn lg" id="viewB">${icon('receipt', 20)}View booking</button><span class="grow"></span><button class="btn primary lg" id="printT">${icon('print', 20)}Print boarding pass</button></div>`);
     root.querySelector('#wiz').style.gridTemplateColumns = '1fr';
+    setTimeout(() => { const h = $('.done-hero h2', root); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } }, 50);
   };
 
-  const navButtons = (back, canNext) => html`<div class="wiz-nav">${back ? html`<button class="btn ghost lg" data-back>${icon('arrowL', 18)}Back</button>` : ''}<span class="grow"></span><button class="btn primary lg" data-next ${canNext ? '' : 'disabled'}>Continue${icon('arrowR', 18)}</button></div>`;
+  /* HCI-R1: wizard footer — Back on the left, Continue (primary) on the right on every step */
+  const navButtons = (back, canNext, why = '') => html`<div class="wiz-nav">${back ? html`<button class="btn ghost lg" data-back title="Back — your choices are kept">${icon('arrowL', 18)}Back</button>` : ''}<span class="grow"></span>${why ? html`<span class="wiz-hint muted" ${canNext ? raw('hidden') : ''}>${why}</span>` : ''}<button class="btn primary lg" data-next ${canNext ? '' : 'disabled'}>Continue${icon('arrowR', 18)}</button></div>`;
 
   /* ---------------- drawing + navigation ---------------- */
   const draw = () => {
     drawStepper(); drawSide();
     if (S.done) return drawDone();
     ({ 1: drawStep1, 2: drawSeatStep, 3: drawStep3, 4: drawStep4, 5: drawStep5 })[S.step]();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: prefs.motion === 'off' ? 'auto' : 'smooth' });
   };
-  const go = (n) => { S.step = n; if (n === 1) { draw(); loadFlights(); } else draw(); };
+  /* HCI-R6: Back / stepper jumps keep every choice already made (state lives in S, not in the DOM) */
+  const go = (n) => { S.step = n; if (n === 1) { draw(); loadFlights(); } else { draw(); if (n === 2 && !S.seatsData) loadSeats(); } };
 
-  const selectFlight = (f, jump = true) => {
+  /* HCI-R7: picking a flight only selects it — the wizard never auto-advances; the user presses Continue */
+  const selectFlight = (f, jump = false) => {
     if (!S.flight || S.flight.FlightID !== f.FlightID) { S.seat = null; S.seatsData = null; S.hover = null; }
-    S.flight = f; S.step = 2; draw(); loadSeats();
+    S.flight = f;
+    if (jump) { S.step = 2; draw(); loadSeats(); return; }
+    drawFlightsList(); drawSide(); syncNext();
+    const nb = $('[data-next]', root); if (nb) nb.focus({ preventScroll: true });
   };
 
   const next = async () => {
+    if (S.step === 1) { if (!S.flight) return; S.step = 2; draw(); loadSeats(); return; }
     if (S.step === 2 && !S.seat) return;
     if (S.step === 3) {
       if (S.pMode === 'existing') { if (!S.passengerId) { toast('Select a passenger, or switch to “New passenger”.', 'error'); return; } }
       else if (!S.newForm.validate()) { toast('Please complete the highlighted passenger fields.', 'error'); return; }
     }
-    if (S.step === 4 && S.bagOn && !(Number(S.bag.weight) >= 0 && S.bag.weight !== '')) { toast('Enter the total bag weight.', 'error'); $('#bagW', root)?.focus(); return; }
+    if (S.step === 4 && !canNext4()) { toast('Enter the total bag weight (0–200 kg).', 'error'); $('#bagW', root)?.focus(); return; }
     go(S.step + 1);
   };
 
@@ -255,7 +287,8 @@ export default async function render(root, params = {}) {
     await busy(btn, async () => {
       try {
         S.done = await api.post('/book', payload);
-        emitChange(); toast(`Booked! PNR ${S.done.booking.BookingReference}`); draw();
+        markTouched('bookings', S.done.booking.BookingID);
+        emitChange(); toast(`Booking confirmed — PNR ${S.done.booking.BookingReference}, seat ${S.done.seat.SeatNumber}.`); draw();
       } catch (e) {
         if (e.fields && Object.keys(e.fields).some((k) => k.startsWith('passenger.'))) { S.pMode = 'new'; S.step = 3; draw(); S.newForm.setErrors(e.fields, 'passenger.'); toastError(e); }
         else if (e.status === 409 && /seat/i.test(e.message)) { toastError(e); S.seat = null; S.step = 2; draw(); loadSeats(); }
@@ -272,8 +305,11 @@ export default async function render(root, params = {}) {
   on(root, 'click', '#clearF', () => { S.filters = { from: '', to: '', date: '', airline: '' }; drawStep1(); loadFlights(); });
   on(root, 'change', '#fform select, #fform input', (e) => { S.filters[e.target.name] = e.target.value; loadFlights(); });
   on(root, 'click', '[data-seat]', (e, el) => {
-    const s = S.seatsData.seats.find((x) => String(x.SeatID) === el.dataset.seat); if (!s || s.SeatStatus !== 'Available') return;
+    /* HCI-R5: booked / blocked seats are disabled in the map and rejected here too */
+    const s = S.seatsData.seats.find((x) => String(x.SeatID) === el.dataset.seat);
+    if (!s || s.SeatStatus !== 'Available') { if (s) toast(`Seat ${s.SeatNumber} is ${s.SeatStatus.toLowerCase()} — please choose an available seat.`, 'error', 3000); return; }
     S.seat = s; S.hover = null; drawSeatStep(); drawSide();
+    toast(`Seat ${s.SeatNumber} selected (${s.SeatClass}).`, 'info', 1800);
   });
   const hoverSeat = (e) => {
     const el = e.target.closest('[data-seat]'); if (!el || !S.seatsData) return;
@@ -300,13 +336,20 @@ export default async function render(root, params = {}) {
     const map = { status: () => { S.status = el.dataset.v; }, payStatus: () => { S.payStatus = el.dataset.v; }, bagType: () => { S.bag.type = el.dataset.v; }, bagHandling: () => { S.bag.handling = el.dataset.v; }, bagCollect: () => { S.bag.collection = el.dataset.v; } };
     map[key](); [...el.parentElement.children].forEach((b) => b.classList.toggle('on', b === el));
   });
+  /* HCI-R6: coupon changes can be undone (restores the previous coupon, or none) */
+  const setCoupon = (info, code) => { S.couponInfo = info; S.coupon = code; drawSide(); drawStep4Money(); };
+  const offerUndo = (prevInfo, prevCode, msg) => toast(msg, 'undo', 6000, { action: { label: 'Undo', onClick: () => { setCoupon(prevInfo, prevCode); toast(prevInfo ? `Coupon ${prevInfo.code} restored.` : 'Coupon removed — back to the full fare.', 'info', 2200); } } });
   const applyCoupon = async (code) => {
+    const prevInfo = S.couponInfo; const prevCode = S.coupon;
     S.coupon = (code || '').trim().toUpperCase();
-    if (!S.coupon) { S.couponInfo = null; drawSide(); drawStep4Money(); return; }
-    try { S.couponInfo = await api.get(`/coupon/${encodeURIComponent(S.coupon)}`); toast(`Coupon ${S.couponInfo.code} applied — ${S.couponInfo.pct}% off.`); }
-    catch (e) { S.couponInfo = null; toastError(e); }
+    if (!S.coupon) { setCoupon(null, ''); if (prevInfo) offerUndo(prevInfo, prevCode, `Coupon ${prevInfo.code} removed.`); return; }
+    try {
+      S.couponInfo = await api.get(`/coupon/${encodeURIComponent(S.coupon)}`);
+      offerUndo(prevInfo, prevCode, `Coupon ${S.couponInfo.code} applied — ${S.couponInfo.pct}% off.`);
+    } catch (e) { S.couponInfo = prevInfo; S.coupon = prevCode; toastError(e); }
     drawSide(); drawStep4Money();
   };
+  on(root, 'click', '#removeCoupon', () => applyCoupon(''));
   on(root, 'click', '#applyCoupon', () => applyCoupon($('#coupon', root).value));
   on(root, 'click', '[data-coupon]', (e, el) => applyCoupon(el.dataset.coupon));
   on(root, 'keydown', '#coupon', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(e.target.value); } });
@@ -318,6 +361,7 @@ export default async function render(root, params = {}) {
     else if (id === 'bagW' || id === 'bagA') {
       if (id === 'bagW') S.bag.weight = e.target.value; else S.bag.allowed = e.target.value;
       const c = calc(); drawSide(); const x = $('#bagX', root); if (x) x.textContent = c.extraKg ? `${c.extraKg} kg over · ${money2(c.extraCharge)}` : 'None — within allowance';
+      syncNext();
     } else if (id === 'bagT') S.bag.time = e.target.value;
   });
   root.addEventListener('change', (e) => {
@@ -330,7 +374,8 @@ export default async function render(root, params = {}) {
   on(root, 'click', '#confirm', (e, el) => confirm(el));
   on(root, 'click', '#printT', () => window.print());
   on(root, 'click', '#viewB', () => openBooking(S.done.booking.BookingID));
-  on(root, 'click', '#again', () => location.reload());
+  /* HCI-R4: "Book another" restarts the wizard in place (no full page reload) */
+  on(root, 'click', '#again', () => { if (location.hash === '#/book') window.dispatchEvent(new HashChangeEvent('hashchange')); else location.hash = '#/book'; });
 
   /* ---------------- start ---------------- */
   draw(); await loadFlights();
@@ -339,7 +384,8 @@ export default async function render(root, params = {}) {
   }
   if (params.flight) {
     const f = S.flights.find((x) => String(x.FlightID) === String(params.flight));
-    if (f) selectFlight(f); else toast('That flight is not open for booking.', 'error');
+    if (f) selectFlight(f, true); else toast('That flight is not open for booking.', 'error');   // explicit deep link from a flight's "Book" button
+
   }
   return () => { if (passengerCombo) passengerCombo.destroy(); if (S.newForm) S.newForm.destroy(); };
 }

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Skyward · Airline Seat Reservation</title>
+  <meta name="description" content="Skyward - an airline seat reservation system: flights, seat maps, bookings, payments, baggage and more." />
+  <link rel="icon" type="image/svg+xml" href="img/favicon.svg" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/hci.css" />
+  <script>
+    // apply the saved theme before first paint (no flash)
+    try { var t = localStorage.getItem('skyward-theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+    /* HCI-R2/R7: text size + motion preference applied before first paint */
+    try {
+      var steps = [0.9, 1, 1.1, 1.2, 1.3], i = Number(localStorage.getItem('skyward-text'));
+      if (steps[i]) document.documentElement.style.setProperty('--hci-scale', String(steps[i]));
+      var mo = localStorage.getItem('skyward-motion');
+      if (mo === 'off' || (!mo && window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) document.documentElement.classList.add('reduce-motion');
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <!-- HCI-R2: skip link for keyboard / screen-reader users -->
+  <a class="skip-link" href="#view" id="skipLink">Skip to main content</a>
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <!-- HCI-R1: brand always leads back to the Skyward home page; Dashboard stays in the nav -->
+      <a class="brand" href="/" aria-label="Skyward home page" title="Back to the Skyward home page">
+        <span class="brand-mark">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" style="transform:rotate(45deg)"><path d="M12 2.5c.9 0 1.6.9 1.6 2.1v4.8l7.4 4.4v2.2l-7.4-2.1v4.1l2 1.6v1.6L12 20.2 8.4 21.2v-1.6l2-1.6v-4.1L3 15.9v-2.2l7.4-4.4V4.6c0-1.2.7-2.1 1.6-2.1z"/></svg>
+        </span>
+        <span><div class="brand-name">Skyward</div><div class="brand-sub">Seat Reservation</div></span>
+      </a>
+      <a class="hci-home-link" href="/" title="Back to the Skyward home page"><span id="homeIc"></span>Back to home page</a>
+      <nav class="nav" id="nav" aria-label="Sections"></nav>
+      <div class="side-foot">
+        <div class="db-status" id="dbStatus" role="status" aria-live="polite"><span class="pulse off" id="dbPulse"></span><div><b id="dbName">Connecting…</b><span id="dbVer" style="color:#7f93bd">MySQL database</span></div></div>
+      </div>
+    </aside>
+    <div class="nav-scrim" id="navScrim"></div>
+
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" title="Menu" aria-controls="sidebar" aria-expanded="false"></button>
+        <div class="crumb" id="crumb"></div>
+        <form class="pnr-find" id="pnrForm" autocomplete="off">
+          <span id="pnrIcon"></span>
+          <input id="pnrInput" type="search" placeholder="Find booking by PNR or name…  ( / )" aria-label="Find booking by PNR or passenger name" title="Search bookings (press / from anywhere)" />
+        </form>
+        <!-- HCI-R2: text size control (persisted) -->
+        <div class="hci-textsize" role="group" aria-label="Text size">
+          <button type="button" class="icon-btn" id="txtDown" aria-label="Smaller text" title="Smaller text (-)"></button>
+          <button type="button" class="icon-btn" id="txtUp" aria-label="Larger text" title="Larger text (+)"></button>
+        </div>
+        <button type="button" class="icon-btn" id="helpBtn" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)"></button>
+        <button type="button" class="icon-btn" id="themeBtn" aria-label="Toggle light or night theme" title="Toggle light / night theme (t)"></button>
+        <!-- HCI-R7: settings popover (theme, text, motion, notifications, dashboard layout) -->
+        <button type="button" class="icon-btn" id="settingsBtn" aria-label="Settings" title="Settings (,)" aria-haspopup="dialog" aria-expanded="false" aria-controls="settingsPop"></button>
+        <a class="btn primary" href="#/book" id="topBook" title="New booking (n)"></a>
+      </header>
+      <main class="content" id="view" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <script src="vendor/chart.umd.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

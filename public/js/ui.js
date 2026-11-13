@@ -2,6 +2,7 @@
 import { html, raw, esc, $, $$, on, debounce, uid, money, fdate } from './util.js';
 import { icon } from './icons.js';
 import { api, qs, store, ent, ApiError } from './api.js';
+import { prefs } from './prefs.js';
 
 /* ================================================================== */
 /*  Chips / small display pieces                                        */
@@ -30,19 +31,68 @@ export const skeletonRows = (n = 6) => html`<div class="skel-list">${Array.from(
 /* ================================================================== */
 /*  Toasts                                                              */
 /* ================================================================== */
-export function toast(message, type = 'success', ms = 4200) {
+/* HCI-R3: every toast = icon + plain-language message, announced through an aria-live region (HCI-R2) */
+const TOAST_ICON = { success: 'check', error: 'alert', info: 'info', warn: 'alert', undo: 'refresh' };
+function toastHost() {
   let host = $('#toasts');
-  if (!host) { host = document.createElement('div'); host.id = 'toasts'; document.body.appendChild(host); }
+  if (!host) {
+    host = document.createElement('div'); host.id = 'toasts';
+    host.setAttribute('role', 'region'); host.setAttribute('aria-live', 'polite'); host.setAttribute('aria-label', 'Notifications');
+    document.body.appendChild(host);
+  }
+  return host;
+}
+/**
+ * toast(message, type, ms, { action: { label, onClick }, onExpire })
+ * Returns { close(), el }. An action toast (e.g. Undo) is always shown, whatever the toast setting.
+ */
+export function toast(message, type = 'success', ms = 4200, opts = {}) {
+  const { action = null, onExpire = null } = opts;
+  /* HCI-R7: user-chosen toast level ("All" or "Errors only") */
+  if (!action && type !== 'error' && prefs.toasts === 'errors') return { close() {}, el: null };
+  const host = toastHost();
   const el = document.createElement('div');
-  el.className = `toast toast-${type}`;
-  el.innerHTML = `${icon(type === 'error' ? 'alert' : type === 'info' ? 'info' : 'check', 18)}<span>${esc(message)}</span>`;
+  el.className = `toast toast-${type}${action ? ' has-action' : ''}`;
+  el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  el.innerHTML = `${icon(TOAST_ICON[type] || 'info', 18)}<span class="toast-msg">${esc(message)}</span>`
+    + (action ? `<button type="button" class="toast-act">${esc(action.label)}</button>` : '')
+    /* HCI-R7: every toast can be dismissed manually */
+    + `<button type="button" class="toast-x" aria-label="Dismiss notification" title="Dismiss">${icon('x', 15)}</button>`
+    + (ms ? '<i class="toast-timer"></i>' : '');
   host.appendChild(el);
   requestAnimationFrame(() => el.classList.add('in'));
-  const kill = () => { el.classList.remove('in'); setTimeout(() => el.remove(), 250); };
-  setTimeout(kill, ms);
-  el.addEventListener('click', kill);
+  let closed = false; let timer = null; let left = ms; let started = Date.now();
+  const timerBar = $('.toast-timer', el);
+  const close = (expired = false) => {
+    if (closed) return; closed = true; clearTimeout(timer);
+    el.classList.remove('in'); setTimeout(() => el.remove(), 250);
+    if (expired && onExpire) onExpire();
+  };
+  const run = () => {
+    if (!ms || closed) return;
+    clearTimeout(timer);
+    started = Date.now(); timer = setTimeout(() => close(true), left);
+    if (timerBar) {
+      timerBar.style.transition = 'none'; timerBar.style.transform = `scaleX(${left / ms})`;
+      requestAnimationFrame(() => requestAnimationFrame(() => { timerBar.style.transition = `transform ${left}ms linear`; timerBar.style.transform = 'scaleX(0)'; }));
+    }
+  };
+  /* HCI-R7: auto-dismiss pauses while the pointer or keyboard focus is on the toast */
+  const pause = () => {
+    if (!ms || closed) return;
+    clearTimeout(timer); left = Math.max(1000, left - (Date.now() - started));
+    if (timerBar) { timerBar.style.transition = 'none'; timerBar.style.transform = `scaleX(${left / ms})`; }
+  };
+  el.addEventListener('mouseenter', pause); el.addEventListener('focusin', pause);
+  el.addEventListener('mouseleave', run); el.addEventListener('focusout', run);
+  el.addEventListener('click', (e) => {
+    if (e.target.closest('.toast-act')) { close(false); action.onClick(); return; }
+    if (e.target.closest('.toast-x')) close(true);
+  });
+  run();
+  return { close: () => close(true), dismiss: () => close(false), el };
 }
-export const toastError = (e) => toast(e instanceof ApiError || e instanceof Error ? e.message : String(e), 'error', 6000);
+export const toastError = (e) => toast(e instanceof ApiError || e instanceof Error ? e.message : String(e), 'error', 7000);
 
 /* ================================================================== */
 /*  Layers: modal + drawer                                              */
@@ -55,7 +105,7 @@ function layerHost() {
 }
 function syncScroll() { document.body.classList.toggle('no-scroll', stack.length > 0); }
 
-function openLayer(kind, { title, subtitle, eyebrow, content, footer, size = 'md', persistent = false, onClose, headExtra = '' }) {
+function openLayer(kind, { title, subtitle, eyebrow, content, footer, size = 'md', persistent = false, onClose, headExtra = '', beforeClose = null }) {
   const layer = document.createElement('div');
   layer.className = `layer layer-${kind}`;
   layer.innerHTML = `
@@ -68,7 +118,7 @@ function openLayer(kind, { title, subtitle, eyebrow, content, footer, size = 'md
           ${subtitle ? `<p>${subtitle instanceof Object ? subtitle : esc(subtitle)}</p>` : ''}
         </div>
         <div class="sheet-head-extra">${headExtra}</div>
-        <button class="icon-btn" data-close aria-label="Close">${icon('x', 20)}</button>
+        <button class="icon-btn" data-close aria-label="Close (Esc)" title="Close (Esc)">${icon('x', 20)}</button>
       </header>
       <div class="sheet-body"></div>
       ${footer ? '<footer class="sheet-foot"></footer>' : ''}
@@ -90,13 +140,18 @@ function openLayer(kind, { title, subtitle, eyebrow, content, footer, size = 'md
       syncScroll();
       if (onClose) onClose(result);
     },
+    /* HCI-R5: user-initiated close (Esc, ×, Cancel, scrim) goes through the unsaved-changes guard */
+    async requestClose() {
+      if (beforeClose && !(await beforeClose())) return;
+      ctl.close();
+    },
   };
   stack.push(ctl);
   syncScroll();
   requestAnimationFrame(() => layer.classList.add('in'));
   layer.addEventListener('click', (e) => {
-    if (e.target.closest('[data-close]')) ctl.close();
-    else if (e.target.classList.contains('scrim') && !persistent) ctl.close();
+    if (e.target.closest('[data-close]')) ctl.requestClose();
+    else if (e.target.classList.contains('scrim') && !persistent) ctl.requestClose();
   });
   setTimeout(() => { const f = $('input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea', body); if (f && kind === 'modal') f.focus({ preventScroll: true }); }, 120);
   return ctl;
@@ -104,12 +159,18 @@ function openLayer(kind, { title, subtitle, eyebrow, content, footer, size = 'md
 export const openModal = (o) => openLayer('modal', o);
 export const openDrawer = (o) => openLayer('drawer', { size: 'lg', ...o });
 export const closeAllLayers = () => [...stack].reverse().forEach((l) => l.close());
+export const layerCount = () => stack.length;
+/* HCI-R2/R7: Esc always closes the top-most layer, so the user can always get out */
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && stack.length) {
     if ($('.combo-menu.open')) return;       // let the picker close first
-    stack[stack.length - 1].close();
+    stack[stack.length - 1].requestClose();
   }
 });
+
+/* HCI-R1: one footer helper for every dialog: message, then secondary/Cancel on the LEFT, primary action on the RIGHT */
+export const dialogFooter = ({ cancelText = 'Cancel', okText = 'Save', okIcon = 'check', tone = 'primary', okAttr = 'data-ok', msg = true } = {}) =>
+  html`${msg ? raw('<span class="foot-msg" data-msg aria-live="polite"></span>') : ''}<button type="button" class="btn ghost" data-close>${cancelText}</button><button type="button" class="btn ${tone}" ${raw(okAttr)}>${okIcon ? icon(okIcon, 18) : ''}${okText}</button>`;
 
 export function confirmDialog({ title, message, confirmText = 'Confirm', cancelText = 'Cancel', tone = 'primary', icon: ic = 'alert' }) {
   return new Promise((resolve) => {
@@ -117,20 +178,24 @@ export function confirmDialog({ title, message, confirmText = 'Confirm', cancelT
     const m = openModal({
       title: html`<span class="confirm-title ${tone}">${icon(ic, 22)}${title}</span>`, size: 'sm',
       content: html`<div class="confirm-body">${raw(message)}</div>`,
-      footer: html`<button class="btn ghost" data-close>${cancelText}</button><button class="btn ${tone === 'danger' ? 'danger' : 'primary'}" data-ok>${confirmText}</button>`,
+      footer: dialogFooter({ cancelText, okText: confirmText, okIcon: null, tone: tone === 'danger' ? 'danger' : 'primary', msg: false }),
       onClose: () => { if (!done) resolve(false); },
     });
     $('[data-ok]', m.el).addEventListener('click', () => { done = true; resolve(true); m.close(); });
+    /* HCI-R5: destructive confirmations put keyboard focus on the safe choice (Cancel) */
+    setTimeout(() => { const b = $(tone === 'danger' ? '.btn[data-close]' : '[data-ok]', m.el); if (b) b.focus(); }, 60);
   });
 }
 
 /** Run an async action on a button with a spinner + disabled state. */
-export async function busy(btn, fn) {
+/* HCI-R3: loading state on the button that started the action (spinner + aria-busy, no double submits) */
+export async function busy(btn, fn, busyText = 'Working…') {
   const label = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spin sm"></span>`;
   btn.style.minWidth = `${btn.offsetWidth}px`;
-  try { return await fn(); } finally { btn.disabled = false; btn.innerHTML = label; btn.style.minWidth = ''; }
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  btn.innerHTML = `<span class="spin sm"></span><span class="sr-only">${esc(busyText)}</span>`;
+  try { return await fn(); } finally { btn.disabled = false; btn.removeAttribute('aria-busy'); btn.innerHTML = label; btn.style.minWidth = ''; }
 }
 
 /* ================================================================== */
@@ -142,7 +207,8 @@ export function combo(container, { kind, scope = '', value = null, label = null,
   container.innerHTML = `
     <div class="combo-input">${icon('search', 18)}
       <input type="text" id="${id}" autocomplete="off" placeholder="${esc(placeholder)}" ${disabled ? 'disabled' : ''}/>
-      <button type="button" class="combo-clear" tabindex="-1" aria-label="Clear" hidden>${icon('x', 16)}</button>
+      <button type="button" class="combo-clear" tabindex="-1" aria-label="Clear" title="Clear" hidden>
+${icon('x', 16)}</button>
     </div>`;
   const input = $('input', container);
   const clear = $('.combo-clear', container);
@@ -233,7 +299,7 @@ const hm = (v) => (v ? String(v).slice(0, 5) : '');
  *  compute(vals, changedName, items) -> patch object (computed fields)
  */
 export function buildForm(entKey, opts = {}) {
-  const { mode = 'create', values = {}, compute = null, only = null, labels = {}, lookupParams = {}, onChange = null, exclude = [], collapse = [] } = opts;
+  const { mode = 'create', values = {}, compute = null, only = null, labels = {}, lookupParams = {}, onChange = null, exclude = [], collapse = [], rules = null, limits = null, onValidity = null } = opts;
   const meta = ent(entKey);
   const vals = {};
   const items = {};
@@ -248,6 +314,40 @@ export function buildForm(entKey, opts = {}) {
   const byName = Object.fromEntries(visible.map((f) => [f.name, f]));
 
   const isLocked = (f) => (mode === 'edit' && f.lockedOnEdit) || f.readonly;
+
+  /* HCI-R5: limits = generic (no negative numbers, no future birth dates) + per-table rules from forms.js */
+  const today = new Date(); const todayYMD = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  function limitsFor(f) {
+    const base = {};
+    if (f.type === 'number') base.min = 0;
+    if (f.type === 'date' && /^(DOB|DateOfBirth)$/i.test(f.name)) base.max = todayYMD;
+    const extra = limits ? (limits(vals, mode)[f.name] || {}) : {};
+    return { ...base, ...extra };
+  }
+  /* HCI-R5: single source of truth for "is this field valid?" — used live, on blur and on submit */
+  function fieldMsg(f) {
+    if (isLocked(f)) return '';
+    const v = vals[f.name];
+    const empty = v === '' || v === null || v === undefined;
+    if (f.required && empty) return 'Required';
+    if (empty) return '';
+    if (f.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Enter a valid email address';
+    if (f.type === 'tel' && (String(v).replace(/\D/g, '').length < 7)) return 'Enter a valid phone number';
+    if (f.type === 'number' && !Number.isFinite(Number(v))) return 'Enter a number';
+    if (f.type === 'rating' && !(v >= 1 && v <= 5)) return 'Pick 1 – 5 stars';
+    const L = limitsFor(f);
+    if (f.type === 'number') {
+      if (L.min !== undefined && Number(v) < Number(L.min)) return `Must be at least ${L.min}`;
+      if (L.max !== undefined && Number(v) > Number(L.max)) return `Must be at most ${L.max}`;
+    }
+    if (f.type === 'date') {
+      if (L.min && String(v) < L.min) return `Can’t be before ${fdate(L.min)}`;
+      if (L.max && String(v) > L.max) return `Can’t be after ${fdate(L.max)}`;
+    }
+    const extra = rules ? rules(vals, mode) : null;
+    return (extra && extra[f.name]) || '';
+  }
+  const touched = new Set();
 
   // initial values
   for (const f of visible) {
@@ -288,10 +388,13 @@ export function buildForm(entKey, opts = {}) {
               <div class="counter" data-counter="${f.name}">${String(v).length} / ${f.maxLength || 400}</div>`;
     }
     const type = f.type === 'number' ? 'number' : f.type; // text, email, tel, date, time
+    /* HCI-R5: numeric / date inputs carry min & max so the browser blocks out-of-range values */
+    const L = limitsFor(f);
+    const mm = `${L.min !== undefined ? ` min="${esc(L.min)}"` : ''}${L.max !== undefined ? ` max="${esc(L.max)}"` : ''}`;
     const step = f.type === 'number' ? ` step="${f.step || 1}"` : '';
     const dl = f.datalist ? ` list="dl-${f.datalist}"` : '';
     const ml = f.maxLength && type === 'text' ? ` maxlength="${f.maxLength}"` : '';
-    return `<input type="${type}" id="${id}" name="${f.name}" value="${esc(v)}"${step}${dl}${ml} placeholder="${esc(f.placeholder || '')}" ${dis}
+    return `<input type="${type}" id="${id}" name="${f.name}" value="${esc(v)}"${step}${dl}${ml}${mm} placeholder="${esc(f.placeholder || '')}" ${dis} ${f.required && !isLocked(f) ? 'aria-required="true"' : ''}
              ${f.transform === 'upper' ? 'style="text-transform:uppercase"' : ''} ${f.type === 'number' ? 'inputmode="decimal"' : ''} autocomplete="off"/>`;
   };
 
@@ -342,8 +445,23 @@ export function buildForm(entKey, opts = {}) {
     $('.ferr', el).textContent = msg || '';
     return true;
   };
+  /* HCI-R5: keep min/max attributes in step with other fields (e.g. arrival date >= departure date) */
+  const applyLimits = () => {
+    for (const f of visible) {
+      if (f.type !== 'date' && f.type !== 'number') continue;
+      const inp = $(`[name="${f.name}"]`, root); if (!inp) continue;
+      const L = limitsFor(f);
+      if (L.min !== undefined) inp.min = L.min; else inp.removeAttribute('min');
+      if (L.max !== undefined) inp.max = L.max; else inp.removeAttribute('max');
+    }
+  };
+  const isValid = () => visible.every((f) => !fieldMsg(f));
+  const invalidCount = () => visible.filter((f) => fieldMsg(f)).length;
+  const notify = () => { if (onValidity) onValidity(isValid(), invalidCount()); };
   const changed = (name) => {
-    setError(name, '');
+    // HCI-R5: real-time inline validation once a field has been visited
+    touched.forEach((n) => { if (byName[n]) setError(n, fieldMsg(byName[n])); });
+    if (!touched.has(name)) setError(name, '');
     if (compute) {
       const patch = compute(vals, name, items) || {};
       for (const [k, v] of Object.entries(patch)) {
@@ -352,8 +470,15 @@ export function buildForm(entKey, opts = {}) {
         if (combos[k] && (v === '' || v === null)) combos[k].clear();
       }
     }
+    applyLimits();
     if (onChange) onChange(vals, name, items);
+    notify();
   };
+  root.addEventListener('focusout', (e) => {
+    const inp = e.target.closest('input[name], select[name], textarea[name]'); if (!inp) return;
+    const f = byName[inp.name]; if (!f) return;
+    touched.add(f.name); setError(f.name, fieldMsg(f));
+  });
 
   /* ---- events ---- */
   root.addEventListener('input', (e) => {
@@ -366,9 +491,9 @@ export function buildForm(entKey, opts = {}) {
   });
   root.addEventListener('click', (e) => {
     const seg = e.target.closest('.seg button');
-    if (seg && !seg.disabled) { const n = seg.parentElement.dataset.seg; vals[n] = seg.dataset.v; setDom(n, vals[n]); changed(n); return; }
+    if (seg && !seg.disabled) { const n = seg.parentElement.dataset.seg; vals[n] = seg.dataset.v; setDom(n, vals[n]); touched.add(n); changed(n); return; }
     const st = e.target.closest('.rating button');
-    if (st && !st.disabled) { const n = st.parentElement.dataset.rating; vals[n] = Number(st.dataset.v); setDom(n, vals[n]); changed(n); return; }
+    if (st && !st.disabled) { const n = st.parentElement.dataset.rating; vals[n] = Number(st.dataset.v); setDom(n, vals[n]); touched.add(n); changed(n); return; }
     const fold = e.target.closest('[data-fold]');
     if (fold) fold.parentElement.classList.toggle('folded');
   });
@@ -381,7 +506,7 @@ export function buildForm(entKey, opts = {}) {
       kind, scope: scope || '', value: vals[f.name] || null, label: labels[f.name] || null,
       placeholder: `Search ${f.label.toLowerCase()}…`, disabled: isLocked(f),
       params: lookupParams[f.name] ? () => lookupParams[f.name](vals) : null,
-      onChange: (id, item) => { vals[f.name] = id || ''; items[f.name] = item; changed(f.name); },
+      onChange: (id, item) => { vals[f.name] = id || ''; items[f.name] = item; touched.add(f.name); changed(f.name); },
     });
   }
 
@@ -390,9 +515,10 @@ export function buildForm(entKey, opts = {}) {
     const patch = compute(vals, null, items) || {};
     for (const [k, v] of Object.entries(patch)) { vals[k] = v; setDom(k, v); }
   }
+  applyLimits();
 
   return {
-    el: root, vals, combos, items,
+    el: root, vals, combos, items, isValid, invalidCount, notify,
     getValues() { return { ...vals }; },
     set(name, v) { vals[name] = v; setDom(name, v); },
     setLookup(name, id, label) { vals[name] = id; return combos[name] && combos[name].setValue(id, label); },
@@ -410,14 +536,8 @@ export function buildForm(entKey, opts = {}) {
       let first = null;
       for (const f of visible) {
         if (isLocked(f)) continue;
-        const v = vals[f.name];
-        const empty = v === '' || v === null || v === undefined;
-        let msg = '';
-        if (f.required && empty) msg = 'Required';
-        else if (!empty && f.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) msg = 'Enter a valid email address';
-        else if (!empty && f.type === 'tel' && (String(v).replace(/\D/g, '').length < 7)) msg = 'Enter a valid phone number';
-        else if (!empty && f.type === 'number' && !Number.isFinite(Number(v))) msg = 'Enter a number';
-        else if (!empty && f.type === 'rating' && !(v >= 1 && v <= 5)) msg = 'Pick 1 – 5 stars';
+        touched.add(f.name);
+        const msg = fieldMsg(f);
         if (msg && !first) first = f.name;
         setError(f.name, msg);
       }
@@ -429,8 +549,16 @@ export function buildForm(entKey, opts = {}) {
 }
 
 /** Standard create/edit modal around buildForm. onSave(values) must return the saved record or throw ApiError. */
-export function formModal({ entKey, mode, title, subtitle, eyebrow, values, labels, compute, only, exclude, lookupParams, collapse, size = 'lg', saveText, onSave, before = '', after = '' }) {
-  const form = buildForm(entKey, { mode, values, labels, compute, only, exclude, lookupParams, collapse });
+export function formModal({ entKey, mode, title, subtitle, eyebrow, values, labels, compute, only, exclude, lookupParams, collapse, size = 'lg', saveText, onSave, before = '', after = '', rules = null, limits = null, dirtyCheck = true }) {
+  let dirty = false; let btn = null; let msg = null;
+  /* HCI-R5: primary button stays disabled until every required field is valid; the footer says what is missing */
+  const onValidity = (ok, n) => {
+    if (!btn) return;
+    btn.disabled = !ok;
+    btn.title = ok ? '' : `Complete ${n} more field${n === 1 ? '' : 's'} to continue`;
+    if (msg && !msg.dataset.server) msg.innerHTML = ok ? '' : `${n} field${n === 1 ? '' : 's'} still need attention · <button type="button" class="linkish" data-show-missing>Show me</button>`;
+  };
+  const form = buildForm(entKey, { mode, values, labels, compute, only, exclude, lookupParams, collapse, rules, limits, onValidity, onChange: () => { dirty = true; if (msg) delete msg.dataset.server; } });
   const wrap = document.createElement('div');
   wrap.className = 'form-modal-body';
   if (before) wrap.insertAdjacentHTML('beforeend', String(before));
@@ -438,13 +566,21 @@ export function formModal({ entKey, mode, title, subtitle, eyebrow, values, labe
   if (after) wrap.insertAdjacentHTML('beforeend', String(after));
   const m = openModal({
     title, subtitle, eyebrow, size, persistent: true, content: wrap,
-    footer: html`<span class="foot-msg" data-msg></span><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-save>${icon('check', 18)}${saveText || (mode === 'edit' ? 'Save changes' : 'Create')}</button>`,
+    footer: dialogFooter({ okText: saveText || (mode === 'edit' ? 'Save changes' : 'Create'), okAttr: 'data-save' }),
     onClose: () => form.destroy(),
+    /* HCI-R5: unsaved-changes guard ("Discard changes?") when closing a dirty form */
+    beforeClose: async () => !dirtyCheck || !dirty || confirmDialog({
+      title: 'Discard changes?', tone: 'danger', icon: 'alert', confirmText: 'Discard', cancelText: 'Keep editing',
+      message: '<p>You have unsaved changes in this form. If you close it now they will be lost.</p>',
+    }),
   });
-  const btn = $('[data-save]', m.el);
-  const msg = $('[data-msg]', m.el);
+  btn = $('[data-save]', m.el);
+  msg = $('[data-msg]', m.el);
+  form.notify();
+  m.el.addEventListener('click', (e) => { if (e.target.closest('[data-show-missing]')) form.validate(); });
   const submit = async () => {
-    msg.textContent = '';
+    if (btn.disabled) { form.validate(); return; }
+    msg.textContent = ''; delete msg.dataset.server;
     if (!form.validate()) { msg.textContent = 'Please fix the highlighted fields.'; return; }
     await busy(btn, async () => {
       try {
@@ -453,13 +589,14 @@ export function formModal({ entKey, mode, title, subtitle, eyebrow, values, labe
       } catch (e) {
         if (e instanceof ApiError) {
           const hit = e.fields ? form.setErrors(e.fields) : false;
-          msg.textContent = hit ? e.message : '';
+          msg.textContent = hit ? e.message : ''; if (hit) msg.dataset.server = '1';
           if (!hit) toastError(e);
         } else toastError(e);
       }
-    });
+    }, mode === 'edit' ? 'Saving changes…' : 'Creating…');
   };
   btn.addEventListener('click', submit);
+
   m.el.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !e.target.closest('.combo')) { e.preventDefault(); submit(); } });
   return { modal: m, form };
 }

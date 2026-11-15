@@ -161,7 +161,6 @@ export default async function render(root, params = {}) {
       <section class="card sect"><div class="sect-head"><span class="badge-ic">${icon('ticket', 22)}</span><div><h3>Booking details</h3><p>How this reservation was made and any discounts.</p></div></div>
         <div class="two"><div><span class="lbl">Passengers on this booking</span>${stepper('pax', S.pax)}</div>
           <div><span class="lbl">Booking status</span>${seg('status', ['Confirmed', 'Pending'], S.status)}</div></div>
-        <div style="margin-top:18px"><span class="lbl">Booking channel</span><div class="choices">${CHANNELS.map(([n, ic]) => html`<button type="button" class="choice ${S.channel === n ? 'on' : ''}" data-channel="${n}">${icon(ic, 20)}<b>${n}</b></button>`)}</div></div>
         <div class="two" style="margin-top:18px"><div><span class="lbl">Coupon code</span><div class="coupon-row"><input class="inp" id="coupon" value="${S.coupon}" placeholder="Enter code" maxlength="20"/><button type="button" class="btn" id="applyCoupon">Apply</button></div>
           <div class="coupon-chips">${Object.keys(P.COUPONS).map((k) => html`<button type="button" data-coupon="${k}" title="${P.COUPONS[k].label}">${k} · ${P.COUPONS[k].pct}%</button>`)}</div>
           ${S.couponInfo ? html`<div class="applied">${icon('check', 16)}${S.couponInfo.code} — ${S.couponInfo.pct}% off (${S.couponInfo.label})</div>` : ''}</div>
@@ -172,7 +171,7 @@ export default async function render(root, params = {}) {
       <section class="card sect"><div class="sect-head"><span class="badge-ic">${icon('card', 22)}</span><div><h3>Payment</h3><p>Record the payment now, or leave it to pay later.</p></div>
         <label class="switch right-act"><input type="checkbox" id="payNow" ${S.payNow ? 'checked' : ''}/><i></i><span class="switch-text">${S.payNow ? 'Pay now' : 'Pay later'}</span></label></div>
         ${S.payNow ? html`<span class="lbl">Method</span><div class="choices">${METHODS.map(([n, ic]) => html`<button type="button" class="choice ${S.method === n ? 'on' : ''}" data-method="${n}">${icon(ic, 20)}<b>${n}</b><small>${(P.CONVENIENCE_PCT[n] ?? 0) ? `${P.CONVENIENCE_PCT[n]}% fee` : 'No fee'}</small></button>`)}</div>
-          <div class="three" style="margin-top:18px"><div><span class="lbl">Payment status</span>${seg('payStatus', ['Success', 'Pending', 'Failed'], S.payStatus)}</div>
+          <div class="two" style="margin-top:18px">
             <div><span class="lbl">Transaction ID</span><input class="inp" id="txn" value="${S.txn}" placeholder="Auto-generated" maxlength="30" style="text-transform:uppercase"/></div>
             <div><span class="lbl">Invoice number</span><input class="inp" id="invoice" value="${S.invoice}" placeholder="Next in sequence" maxlength="20" style="text-transform:uppercase"/></div></div>
           <dl class="kvs c3" style="margin-top:18px"><div class="kv"><dt>Booking amount</dt><dd>${money2(c.total)}</dd></div><div class="kv"><dt>Convenience fee + GST</dt><dd>${money2(c.fee + c.gst)}</dd></div><div class="kv"><dt>Total to charge</dt><dd><b>${money2(c.payable)}</b></dd></div></dl>`

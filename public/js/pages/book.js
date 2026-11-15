@@ -21,7 +21,7 @@ export default async function render(root, params = {}) {
     step: 1, flights: [], airports: [], filters: { from: '', to: '', date: '', airline: '' }, loadingFlights: true,
     flight: null, seatsData: null, seat: null, hover: null,
     pMode: 'existing', passengerId: null, passengerItem: null, passengerRow: null, newForm: null,
-    pax: 1, channel: 'Website', coupon: '', couponInfo: null, insurance: false, status: 'Confirmed', createdBy: 'Agent-01',
+    pax: 1, channel: 'Website', coupon: '', couponInfo: null, insurance: false, status: 'Confirmed', createdBy: 'Website',
     payNow: true, method: 'Credit Card', payStatus: 'Success', txn: '', invoice: '',
     bagOn: false, bag: { count: 1, weight: '', allowed: '', type: 'Checked', handling: 'None', status: 'Checked-In', collection: 'Not Collected', time: nowHM() },
     done: null,
@@ -173,14 +173,16 @@ export default async function render(root, params = {}) {
   const drawStep4 = () => {
     const c = calc(); const bg = S.bag;
     main.innerHTML = String(html`<div class="step-title"><h2>Booking, payment & <em>baggage</em></h2></div>
-      <section class="card sect"><div class="sect-head"><span class="badge-ic">${icon('ticket', 22)}</span><div><h3>Booking details</h3><p>How this reservation was made and any discounts.</p></div></div>
-        <div class="two"><div><span class="lbl">Passengers on this booking</span>${stepper('pax', S.pax)}</div>
-          <div><span class="lbl">Booking status</span>${seg('status', ['Confirmed', 'Pending'], S.status)}</div></div>
-        <div class="two" style="margin-top:18px"><div><span class="lbl">Coupon code</span><div class="coupon-row"><input class="inp" id="coupon" value="${S.coupon}" placeholder="Enter code" maxlength="20"/><button type="button" class="btn" id="applyCoupon">Apply</button></div>
+      <section class="card sect"><div class="sect-head"><span class="badge-ic">${icon('ticket', 22)}</span><div><h3>Booking details</h3><p>Travel party, discounts and optional insurance.</p></div></div>
+        <div class="two">
+          <div><span class="lbl">Passengers on this booking</span>${stepper('pax', S.pax)}</div>
+          <div style="display:flex;align-items:flex-end;padding-bottom:8px"><label class="switch"><input type="checkbox" id="insurance" ${S.insurance ? 'checked' : ''}/><i></i><span class="switch-text">Travel insurance</span></label></div>
+        </div>
+        <div style="margin-top:18px">
+          <span class="lbl">Coupon code</span><div class="coupon-row"><input class="inp" id="coupon" value="${S.coupon}" placeholder="Enter code" maxlength="20"/><button type="button" class="btn" id="applyCoupon">Apply</button></div>
           <div class="coupon-chips">${Object.keys(P.COUPONS).map((k) => html`<button type="button" data-coupon="${k}" title="${P.COUPONS[k].label}">${k} · ${P.COUPONS[k].pct}%</button>`)}</div>
-          ${S.couponInfo ? html`<div class="applied">${icon('check', 16)}${S.couponInfo.code} — ${S.couponInfo.pct}% off (${S.couponInfo.label}) <button type="button" class="linkish" id="removeCoupon" title="Remove this coupon">Remove</button></div>` : ''}</div>
-          <div><span class="lbl">Booked by</span><input class="inp" id="createdBy" value="${S.createdBy}" maxlength="50" placeholder="Agent or system name"/>
-            <div style="margin-top:16px"><label class="switch"><input type="checkbox" id="insurance" ${S.insurance ? 'checked' : ''}/><i></i><span class="switch-text">Travel insurance</span></label></div></div></div>
+          ${S.couponInfo ? html`<div class="applied">${icon('check', 16)}${S.couponInfo.code} — ${S.couponInfo.pct}% off (${S.couponInfo.label}) <button type="button" class="linkish" id="removeCoupon" title="Remove this coupon">Remove</button></div>` : ''}
+        </div>
         <div class="fhint" style="margin-top:14px">Booking date &amp; time (<b>${fdate(todayStr())}</b>) are recorded automatically.</div></section>
 
       <section class="card sect"><div class="sect-head"><span class="badge-ic">${icon('card', 22)}</span><div><h3>Payment</h3><p>Record the payment now, or leave it to pay later.</p></div>
@@ -198,9 +200,9 @@ export default async function render(root, params = {}) {
             <div><span class="lbl">Allowed weight (kg)</span><input class="inp" id="bagA" type="number" step="0.5" min="0" max="100" value="${bg.allowed === '' ? c.allowed : bg.allowed}"/></div></div>
           <div class="three" style="margin-top:18px"><div><span class="lbl">Type</span>${seg('bagType', ['Checked', 'Cabin'], bg.type)}</div><div><span class="lbl">Special handling</span>${seg('bagHandling', ['None', 'Fragile', 'Priority'], bg.handling)}</div>
             <div><span class="lbl">Check-in time</span><input class="inp" id="bagT" type="time" value="${bg.time}"/></div></div>
-          <div class="three" style="margin-top:18px"><div><span class="lbl">Baggage status</span><select class="inp" id="bagS">${['Checked-In', 'Loaded', 'In Transit', 'Delivered', 'Lost'].map((o) => html`<option ${o === bg.status ? 'selected' : ''}>${o}</option>`)}</select></div>
-            <div><span class="lbl">Collection</span>${seg('bagCollect', ['Not Collected', 'Collected'], bg.collection)}</div>
-            <div><span class="lbl">Excess charge</span><div class="inp" id="bagX" style="display:flex;align-items:center;background:var(--surface-3)">${c.extraKg ? `${c.extraKg} kg over · ${money2(c.extraCharge)}` : 'None — within allowance'}</div></div></div>
+          <div style="margin-top:18px">
+            <span class="lbl">Excess charge</span><div class="inp" id="bagX" style="display:flex;align-items:center;background:var(--surface-3);max-width:360px">${c.extraKg ? `${c.extraKg} kg over · ${money2(c.extraCharge)}` : 'None — within allowance'}</div>
+          </div>
           <div class="fhint" style="margin-top:12px">The tag number is generated automatically (next in sequence). Excess baggage is billed at ₹${P.EXCESS_BAGGAGE_RATE} per extra kg.</div>` : ''}</section>
       ${navButtons(true, canNext4(), 'Enter the bag weight (0–200 kg) or switch baggage off')}`);
   };
@@ -215,7 +217,7 @@ export default async function render(root, params = {}) {
         <div class="kv"><dt>Seat</dt><dd><b>${s.SeatNumber}</b> · ${s.SeatClass} · ${s.SeatType}</dd></div><div class="kv"><dt>Terminal / Gate</dt><dd>${f.Terminal || '—'} / ${f.Gate || '—'}</dd></div><div class="kv"><dt>Aircraft</dt><dd>${f.AircraftModel}</dd></div></dl>`)}
       ${blk('Passenger', 3, html`<dl class="kvs c3"><div class="kv"><dt>Name</dt><dd>${pName}</dd></div><div class="kv"><dt>Type</dt><dd>${S.pMode === 'existing' ? 'Existing passenger' : 'New passenger (will be registered)'}</dd></div>
         <div class="kv"><dt>Travellers</dt><dd>${S.pax}</dd></div></dl>`)}
-      ${blk('Booking & payment', 4, html`<dl class="kvs c3"><div class="kv"><dt>Status</dt><dd>${statusChip(S.payNow && S.payStatus === 'Success' ? 'Confirmed' : S.status)}</dd></div><div class="kv"><dt>Channel</dt><dd>${S.channel}</dd></div><div class="kv"><dt>Booked by</dt><dd>${S.createdBy || 'System'}</dd></div>
+      ${blk('Booking & payment', 4, html`<dl class="kvs c3"><div class="kv"><dt>Status</dt><dd>${statusChip(S.payNow && S.payStatus === 'Success' ? 'Confirmed' : S.status)}</dd></div>
         <div class="kv"><dt>Coupon</dt><dd>${S.couponInfo ? S.couponInfo.code : '—'}</dd></div><div class="kv"><dt>Insurance</dt><dd>${S.insurance ? 'Yes' : 'No'}</dd></div><div class="kv"><dt>Payment</dt><dd>${S.payNow ? html`${S.method} · ${statusChip(S.payStatus)}` : 'Pay later'}</dd></div>
         <div class="kv"><dt>Baggage</dt><dd>${S.bagOn ? `${b.count} bag(s) · ${b.weight || 0} kg · ${b.type}` : 'None'}</dd></div><div class="kv"><dt>Total fare</dt><dd><b>${money2(c.total)}</b></dd></div><div class="kv"><dt>Amount payable</dt><dd><b>${money2(S.payNow ? c.payable : c.total)}</b></dd></div></dl>`)}
       <div class="wiz-nav"><button class="btn ghost lg" data-goto="4">${icon('arrowL', 18)}Back</button><span class="grow"></span><button class="btn primary lg" id="confirm">${icon('check', 20)}Confirm booking</button></div>`);

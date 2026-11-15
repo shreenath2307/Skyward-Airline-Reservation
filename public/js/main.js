@@ -3,6 +3,7 @@ import { html, mount, $, $$, on } from './util.js';
 import { icon } from './icons.js';
 import { api, loadMeta, qs } from './api.js';
 import { toast, toastError, closeAllLayers } from './ui.js';
+import { initRulesTour } from './rules.js';
 import { initHCI, setTheme, toggleTheme, initRecentSearch, rememberSearch, flushDeletes } from './hci.js';
 
 const NAV = [
@@ -136,6 +137,7 @@ async function route() {
 (async function boot() {
   initHCI();
   buildChrome();
+  initRulesTour();
   const health = await checkHealth();
   setInterval(checkHealth, 30000);
 

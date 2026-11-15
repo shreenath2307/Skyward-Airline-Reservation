@@ -8,6 +8,7 @@
   <link rel="icon" type="image/svg+xml" href="img/favicon.svg" />
   <link rel="stylesheet" href="css/styles.css" />
   <link rel="stylesheet" href="css/hci.css" />
+  <link rel="stylesheet" href="css/rules.css" />
   <script>
     // apply the saved theme before first paint (no flash)
     try { var t = localStorage.getItem('skyward-theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
@@ -53,6 +54,8 @@
           <button type="button" class="icon-btn" id="txtDown" aria-label="Smaller text" title="Smaller text (-)"></button>
           <button type="button" class="icon-btn" id="txtUp" aria-label="Larger text" title="Larger text (+)"></button>
         </div>
+        <!-- HCI tour: step through the 8 Golden Rules and where each is implemented -->
+        <button type="button" class="btn sm rules-btn" id="rulesBtn" title="The 8 Golden Rules — where each is implemented (press 8)" aria-haspopup="dialog"></button>
         <button type="button" class="icon-btn" id="helpBtn" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)"></button>
         <button type="button" class="icon-btn" id="themeBtn" aria-label="Toggle light or night theme" title="Toggle light / night theme (t)"></button>
         <!-- HCI-R7: settings popover (theme, text, motion, notifications, dashboard layout) -->

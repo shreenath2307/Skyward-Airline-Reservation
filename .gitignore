@@ -21,3 +21,6 @@ desktop.ini
 # Generated logs & artifacts
 .system_generated/
 .vercel
+
+# Office lock / temp files
+~$*

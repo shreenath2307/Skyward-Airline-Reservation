@@ -14,7 +14,16 @@ A web UI for the `AirlineReservationSystem` MySQL database. Every attribute of a
    (and `DB_USER` if it is not `root`).
 4. **Run** — double-click `start.bat` (Windows) or run `./start.sh` (macOS/Linux).
    Or manually: `npm install` then `npm start`.
-5. Open **http://localhost:3000**.
+5. Open **http://localhost:3000** — the scroll-animated landing page. Press **D** or click *Open Dashboard*
+   to reach the app at **http://localhost:3000/app.html**.
+
+## Website & HCI
+- **Landing page** (`public/index.html`, `css/landing.css`, `js/landing.js`): GSAP ScrollTrigger + Lenis smooth scroll,
+  aircraft-window zoom hero, cloud parallax, jet → blueprint reveal, live database stats, three.js globe.
+  Respects *prefers-reduced-motion* and has a Motion on/off toggle. All libraries are bundled in `public/vendor` (works offline).
+- **Shneiderman's 8 Golden Rules** are implemented across the dashboard — see
+  [`docs/HCI-8-Golden-Rules-Report.pdf`](docs/HCI-8-Golden-Rules-Report.pdf). Every location is tagged in code with
+  `HCI-R1` … `HCI-R8` (`grep -rn "HCI-R" public`). Press **?** in the dashboard for keyboard shortcuts.
 
 ## What's inside
 

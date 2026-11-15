@@ -1,49 +1,329 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Skyward · Airline Seat Reservation</title>
-  <meta name="description" content="Skyward - an airline seat reservation system: flights, seat maps, bookings, payments, baggage and more." />
-  <link rel="icon" type="image/svg+xml" href="img/favicon.svg" />
-  <link rel="stylesheet" href="css/styles.css" />
+  <meta name="description" content="Skyward is a DBMS course project: a relational airline seat-reservation system built on MySQL with stored procedures, triggers and views.">
+  <meta name="theme-color" content="#015AA9">
+  <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+  <link rel="preload" href="fonts/unbounded-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/montserrat-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="img/landing/window-main.webp" as="image">
+  <link rel="stylesheet" href="vendor/lenis.css">
+  <link rel="stylesheet" href="css/landing.css">
   <script>
-    // apply the saved theme before first paint (no flash)
-    try { var t = localStorage.getItem('skyward-theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+    /* Decide the motion mode before first paint so there is no layout jump (HCI rule 7). */
+    (function () {
+      var pref = null;
+      try { pref = localStorage.getItem('skyward-motion'); } catch (e) {}
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var off = pref === 'off' || (pref === null && reduce);
+      var small = window.matchMedia && window.matchMedia('(max-width: 899px)').matches;
+      var root = document.documentElement;
+      root.classList.add('js');
+      if (off) root.classList.add('motion-off');
+      if (off || small) root.classList.add('is-static');
+    })();
   </script>
 </head>
 <body>
-  <div class="app">
-    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
-      <a class="brand" href="#/dashboard" aria-label="Skyward home">
-        <span class="brand-mark">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" style="transform:rotate(45deg)"><path d="M12 2.5c.9 0 1.6.9 1.6 2.1v4.8l7.4 4.4v2.2l-7.4-2.1v4.1l2 1.6v1.6L12 20.2 8.4 21.2v-1.6l2-1.6v-4.1L3 15.9v-2.2l7.4-4.4V4.6c0-1.2.7-2.1 1.6-2.1z"/></svg>
-        </span>
-        <span><div class="brand-name">Skyward</div><div class="brand-sub">Seat Reservation</div></span>
-      </a>
-      <nav class="nav" id="nav"></nav>
-      <div class="side-foot">
-        <div class="db-status"><span class="pulse off" id="dbPulse"></span><div><b id="dbName">Connecting…</b><span id="dbVer" style="color:#7f93bd">MySQL database</span></div></div>
-      </div>
-    </aside>
-    <div class="nav-scrim" id="navScrim"></div>
+  <a class="skip-link" href="#main">Skip to content</a>
 
-    <div class="main">
-      <header class="topbar">
-        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu"></button>
-        <div class="crumb" id="crumb"></div>
-        <form class="pnr-find" id="pnrForm" autocomplete="off">
-          <span id="pnrIcon"></span>
-          <input id="pnrInput" type="search" placeholder="Find booking by PNR or name…" aria-label="Find booking by PNR" />
-        </form>
-        <button class="icon-btn" id="themeBtn" aria-label="Toggle theme" title="Toggle light / night theme"></button>
-        <a class="btn primary" href="#/book" id="topBook"></a>
-      </header>
-      <main class="content" id="view" tabindex="-1"></main>
-    </div>
+  <div class="preloader" aria-hidden="true">
+    <span class="preloader__mark">Skyward</span>
+    <span class="preloader__bar"><span></span></span>
   </div>
 
-  <script src="vendor/chart.umd.js"></script>
-  <script type="module" src="js/main.js"></script>
+  <!-- ============ HEADER ============ -->
+  <header class="site-header" id="top">
+    <nav class="site-header__nav" aria-label="Sections">
+      <ul>
+        <li><a href="#about" data-scroll>About</a></li>
+        <li><a href="#schema" data-scroll>Schema</a></li>
+        <li><a href="#features" data-scroll>Features</a></li>
+        <li><a href="#routes" data-scroll>Routes</a></li>
+      </ul>
+    </nav>
+    <a class="site-header__brand" href="#top" data-scroll aria-label="Skyward, back to top">Skyward</a>
+    <div class="site-header__actions">
+      <button type="button" class="motion-toggle" id="motionToggle" aria-pressed="true"
+              title="Turn smooth scrolling and scroll animations on or off">
+        <span class="motion-toggle__dot" aria-hidden="true"></span>
+        <span class="motion-toggle__label">Motion: on</span>
+      </button>
+      <a class="link-book" href="/app.html#/book">Book a seat</a>
+      <a class="pill pill--light" href="/app.html#/dashboard" aria-keyshortcuts="D"
+         title="Open the dashboard (keyboard shortcut: D)">
+        Open Dashboard <kbd aria-hidden="true">D</kbd>
+      </a>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+
+    <!-- ============ SECTION 1: HERO + ABOUT over the sky ============ -->
+    <div class="bg-container" data-section-1>
+
+      <section class="hero-section" aria-labelledby="hero-title">
+        <div class="hero-scroll-area">
+          <div class="hero-text-container">
+            <div class="hero-text__left">
+              <h1 id="hero-title" class="h2 font-display">Reserve <br> the Sky</h1>
+              <div class="hero-text__sub">
+                <p class="h4">Your <br> seat is <br> waiting</p>
+                <p class="label-text">A relational airline seat-reservation system. Search a flight, pick a seat on a live cabin map and book it in a single atomic transaction.</p>
+              </div>
+            </div>
+            <div class="hero-text__right">
+              <p class="h2 font-display" aria-hidden="true">Seat by <br> Seat</p>
+              <p class="label-text">SCROLL DOWN</p>
+            </div>
+          </div>
+
+          <div class="hero-image-container" data-gsap-hero-image-container>
+            <img src="img/landing/window-main.webp" alt="" width="1806" height="903" class="hero-img" fetchpriority="high">
+            <img src="img/landing/window-outline.webp" alt="" width="2176" height="1088" class="hero-img">
+          </div>
+        </div>
+        <div class="anchor-about" aria-hidden="true"></div>
+      </section>
+
+      <section class="about-section" id="about" data-about-parallax aria-labelledby="about-heading">
+        <div class="about-text-container">
+          <h2 id="about-heading" class="visually-hidden">About the project</h2>
+          <p class="about-text h3">
+            Skyward is our DBMS course project: a relational airline seat-reservation system.
+            Eight normalised tables hold every passenger, flight, seat and booking, while stored
+            procedures, triggers and views keep each reservation consistent from search to boarding pass.
+          </p>
+
+          <div class="about-grid-wrap">
+            <div class="about-grid" data-about-blur-reveal>
+              <div class="about-card">
+                <h3 class="h5 font-display">Live seat maps</h3>
+                <p>Every cabin is drawn straight from the Seat table. Taken, free and premium seats update the moment a booking or cancellation lands.</p>
+              </div>
+              <div class="about-card">
+                <h3 class="h5 font-display">Atomic bookings</h3>
+                <p>sp_BookSeat wraps the seat lock, booking row and fare calculation in one transaction, so a seat can never be sold twice.</p>
+              </div>
+              <div class="about-card">
+                <h3 class="h5 font-display">Automatic triggers</h3>
+                <p>Five triggers keep seat status, available-seat counts and refunds in step with every insert, update and cancellation.</p>
+              </div>
+              <div class="about-card">
+                <h3 class="h5 font-display">Insight views</h3>
+                <p>Views for occupancy, passenger spending and top-rated flights power the dashboard charts with plain SQL.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="sky-container" aria-hidden="true">
+        <div class="sky-hero" data-gsap-cloud-bg>
+          <img src="img/landing/cloud-bg.webp" alt="" width="2176" height="1088" class="sky-hero__img">
+          <div class="sky-hero__overlay"></div>
+        </div>
+        <div class="sky-about">
+          <img src="img/landing/sky-about.avif" alt="" width="2176" height="1088" class="sky-about__img" loading="lazy">
+          <div class="sky-about__gradient"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SECTION 2: FLIGHT / DATABASE SPEC ============ -->
+    <section class="flight-section" id="schema" data-header-light aria-labelledby="schema-heading">
+      <div class="flight-inner">
+        <div class="jet-scroll-area">
+          <div class="flight-content">
+            <div class="jet-title">
+              <div class="jet-title__row">
+                <h2 id="schema-heading" class="jet-title__h font-display">FLY IN</h2>
+                <p class="jet-title__h font-display" aria-hidden="true">SKYWARD</p>
+              </div>
+              <div class="jet-grid">
+                <p class="jet-grid__tag font-display">Reservations that <br> keep their promise</p>
+                <div class="jet-grid__copy">
+                  <p>Behind every boarding pass is the AirlineReservationSystem schema: passengers, flights, seats and bookings linked by foreign keys, with payments, cancellations, reviews and baggage hanging off each booking.</p>
+                  <p>Fares, taxes, coupons and refunds are calculated in the database itself, so the numbers on screen are always the numbers on record.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="jet-description">
+              <div class="jet-desc-grid">
+                <div class="jet-spec">
+                  <h3 class="jet-spec__name font-display">Airline<wbr>Reservation<wbr>System</h3>
+                  <dl class="spec-cells" id="specCells" aria-describedby="specStatus">
+                    <div class="spec-cell"><dt>Tables</dt><dd data-stat="a">8 tables</dd></div>
+                    <div class="spec-cell"><dt>Procedures</dt><dd data-stat="b">4 procedures</dd></div>
+                    <div class="spec-cell"><dt>Triggers</dt><dd data-stat="c">5 triggers</dd></div>
+                    <div class="spec-cell"><dt>Views</dt><dd data-stat="d">4 views</dd></div>
+                  </dl>
+                  <p class="spec-status" id="specStatus" role="status" aria-live="polite">
+                    <span class="spec-status__dot" aria-hidden="true"></span><span class="spec-status__text">Connecting to the database…</span>
+                  </p>
+                </div>
+                <div class="jet-blueprint-wrap">
+                  <img src="img/landing/jet-blueprint.avif" alt="Technical blueprint drawing of an aircraft" width="1056" height="1416" class="jet-blueprint" loading="lazy">
+                </div>
+                <div class="jet-side">
+                  <h3 class="h6 font-display">Normalised <br> to 3NF</h3>
+                  <p>Every non-key column depends on the key, the whole key and nothing but the key. Seat prices live with seats, fares with bookings, so an update is made once and only once.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="jet-light-bg" aria-hidden="true"></div>
+          </div>
+          <div class="jet-image">
+            <img src="img/landing/jet-center.webp" alt="A passenger jet seen from above" width="2880" height="2880" loading="lazy">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SECTION 3: FEATURES ============ -->
+    <section class="features-section" id="features" data-header-light aria-labelledby="features-heading">
+      <div class="features-text">
+        <h2 id="features-heading" class="eyebrow font-display">A better way to book</h2>
+        <div class="accordion" id="featureAccordion">
+          <div class="acc-item is-open" data-index="0">
+            <h3 class="acc-heading">
+              <button type="button" class="acc-trigger" id="acc-btn-0" aria-expanded="true" aria-controls="acc-panel-0">
+                <span class="acc-title font-display">5-step booking wizard</span>
+                <span class="acc-icon" aria-hidden="true">+</span>
+              </button>
+            </h3>
+            <div class="acc-panel" id="acc-panel-0" role="region" aria-labelledby="acc-btn-0">
+              <div class="acc-panel__inner"><p>Flight, seat map, passenger, booking with payment and baggage, then review. Each step shows where you are and what is left, and it ends with a printable boarding pass.</p></div>
+            </div>
+          </div>
+          <div class="acc-item" data-index="1">
+            <h3 class="acc-heading">
+              <button type="button" class="acc-trigger" id="acc-btn-1" aria-expanded="false" aria-controls="acc-panel-1">
+                <span class="acc-title font-display">Interactive seat maps</span>
+                <span class="acc-icon" aria-hidden="true">+</span>
+              </button>
+            </h3>
+            <div class="acc-panel" id="acc-panel-1" role="region" aria-labelledby="acc-btn-1" hidden>
+              <div class="acc-panel__inner"><p>View each cabin by class, see which seats are free, edit individual seats or add whole rows in bulk. Booked seats are locked so they can't be picked twice.</p></div>
+            </div>
+          </div>
+          <div class="acc-item" data-index="2">
+            <h3 class="acc-heading">
+              <button type="button" class="acc-trigger" id="acc-btn-2" aria-expanded="false" aria-controls="acc-panel-2">
+                <span class="acc-title font-display">Payments &amp; coupons</span>
+                <span class="acc-icon" aria-hidden="true">+</span>
+              </button>
+            </h3>
+            <div class="acc-panel" id="acc-panel-2" role="region" aria-labelledby="acc-btn-2" hidden>
+              <div class="acc-panel__inner"><p>Fare is ticket price × seat multiplier × passengers, plus 12% tax. Coupons WELCOME5, FLY10, SAVE15 and FESTIVE20 apply instantly, with 5% GST and a convenience fee by payment method.</p></div>
+            </div>
+          </div>
+          <div class="acc-item" data-index="3">
+            <h3 class="acc-heading">
+              <button type="button" class="acc-trigger" id="acc-btn-3" aria-expanded="false" aria-controls="acc-panel-3">
+                <span class="acc-title font-display">Baggage &amp; cancellations</span>
+                <span class="acc-icon" aria-hidden="true">+</span>
+              </button>
+            </h3>
+            <div class="acc-panel" id="acc-panel-3" role="region" aria-labelledby="acc-btn-3" hidden>
+              <div class="acc-panel__inner"><p>Excess baggage is charged at ₹500 per kg beyond the class allowance, with generated bag-tag numbers. Cancellations run through sp_CancelBooking with a 10% charge and a tracked refund.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="features-media" aria-hidden="true">
+        <div class="features-media__inner" data-features-image>
+          <img src="img/landing/feature-availability.jpg" alt="" class="feature-img is-active" data-feature="0" loading="lazy">
+          <img src="img/landing/feature-efficient.jpg" alt="" class="feature-img" data-feature="1" loading="lazy">
+          <img src="img/landing/feature-services.jpg" alt="" class="feature-img" data-feature="2" loading="lazy">
+          <img src="img/landing/cloud-bg.webp" alt="" class="feature-img" data-feature="3" loading="lazy">
+          <div class="features-media__shade"></div>
+        </div>
+      </div>
+
+      <div class="features-cta">
+        <a class="pill pill--light pill--shadow" href="/app.html#/book">
+          Book a seat
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+        </a>
+      </div>
+
+      <dl class="features-stats">
+        <div class="fstat fstat--left"><dt>Tables</dt><dd>8</dd></div>
+        <div class="fstat fstat--center"><dt>Engine</dt><dd>MySQL 8</dd></div>
+        <div class="fstat fstat--right"><dt>Local time</dt><dd><time id="localTime">--:--</time></dd></div>
+      </dl>
+    </section>
+
+    <!-- ============ SECTION 4: FOOTER ============ -->
+    <footer class="footer-section" id="routes" aria-labelledby="routes-heading">
+      <div class="footer-cities">
+        <h2 id="routes-heading" class="visually-hidden">Routes</h2>
+        <div class="footer-cities__row">
+          <div class="footer-cities__lead">Fly anywhere</div>
+          <div class="footer-cities__plane" aria-hidden="true">
+            <span class="line"></span>
+            <svg viewBox="0 0 16 16" fill="none"><path d="M10.0354 9.33333L6.66699 14.6667L5.33366 14.6667L7.01786 9.33333L3.44479 9.33333L2.33366 11.3333L1.33366 11.3333L2.00033 8.33333L1.33366 5.33333L2.33366 5.33333L3.44479 7.33333L7.01786 7.33333L5.33366 2L6.66699 2L10.0354 7.33333L13.667 7.33333C14.2193 7.33333 14.667 7.78107 14.667 8.33333C14.667 8.8856 14.2193 9.33333 13.667 9.33333L10.0354 9.33333Z" fill="currentColor"/></svg>
+            <span class="line"></span>
+          </div>
+          <div class="city-window">
+            <div class="city-window__fade" aria-hidden="true"></div>
+            <ul class="city-list" id="cityList" aria-label="Cities served by Skyward flights"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-globe-area">
+        <div class="global-text" data-global-text aria-hidden="true">
+          <svg viewBox="0 0 1440 260" preserveAspectRatio="xMidYMid meet">
+            <text x="720" y="200" text-anchor="middle">SKYWARD</text>
+          </svg>
+        </div>
+
+        <div class="globe-stage">
+          <p class="globe-left font-display">Book any route <br> with total comfort <br> and control</p>
+          <div class="globe-right">
+            <p class="globe-right__title">DBMS Course Project · SY</p>
+            <p class="globe-right__sub">Node.js · Express · MySQL</p>
+            <p class="globe-right__label"><span>Built for</span><span>Database Systems</span></p>
+          </div>
+          <div class="globe-canvas" id="globe" role="img" aria-label="A rotating globe showing flight routes. Drag to rotate."></div>
+          <div class="globe-buttons">
+            <a class="pill pill--glass" href="https://github.com/shreenath2307/Skyward-Airline-Reservation" target="_blank" rel="noopener">
+              View Source
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+              <span class="visually-hidden">(opens in a new tab)</span>
+            </a>
+            <a class="pill pill--light pill--glow" href="/app.html#/dashboard">
+              Open Dashboard
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+            </a>
+          </div>
+        </div>
+
+        <div class="footer-bottom">
+          <div class="footer-bottom__left">
+            <span class="footer-bottom__rule" aria-hidden="true"></span>
+            <p>© 2026 Skyward · Airline Reservation System</p>
+          </div>
+          <a class="footer-bottom__mid" href="#top" data-scroll>Back to top</a>
+          <p class="footer-bottom__right">Press <kbd>D</kbd> for the dashboard</p>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <script src="vendor/gsap.min.js"></script>
+  <script src="vendor/ScrollTrigger.min.js"></script>
+  <script src="vendor/SplitText.min.js"></script>
+  <script src="vendor/lenis.min.js"></script>
+  <script src="vendor/three.min.js" defer></script>
+  <script src="js/landing.js" defer></script>
 </body>
 </html>

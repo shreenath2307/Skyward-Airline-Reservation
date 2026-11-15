@@ -6,6 +6,8 @@ import { statusChip, tierChip, idChip, stars, skeletonRows, emptyState, toastErr
 import { personAvatar, airlineAvatar, routeHTML, cell2, occBar, onChange, flightLabel } from '../common.js';
 import { openBooking, openPassenger, openFlight, openRecord } from '../drawers.js';
 import { createRecord, editRecord, deleteRecord } from '../forms.js';
+import { isPendingDelete, takeTouched } from '../hci.js';
+import { KEYS, getJSON, setJSON, prefs } from '../prefs.js';
 
 const person = (name, sub) => html`<div class="row" style="gap:12px">${personAvatar(name)}${cell2(name, sub)}</div>`;
 const pnr = (r) => html`<span class="pnr">${r.BookingReference}</span>`;
@@ -120,14 +122,29 @@ export default async function render(root, params, entKey) {
     filters: {}, rows: [], total: 0, facets: null,
   };
   // deep links from the dashboard, e.g. #/flights?FlightStatus=Delayed
-  for (const [k, v] of Object.entries(params || {})) if (meta.fields.some((f) => f.name === k)) st.filters[k] = v;
+  let deepLinked = false;
+  for (const [k, v] of Object.entries(params || {})) if (meta.fields.some((f) => f.name === k)) { st.filters[k] = v; deepLinked = true; }
+  /* HCI-R8: remember the last search / filter / sort used on each list page */
+  const memKey = KEYS.filters + entKey;
+  let restored = false;
+  if (!deepLinked) {
+    const mem = getJSON(memKey, null);
+    if (mem && typeof mem === 'object') {
+      if (typeof mem.q === 'string') st.q = mem.q;
+      if (mem.filters && typeof mem.filters === 'object') st.filters = mem.filters;
+      if (mem.sort) { st.sort = mem.sort; st.dir = mem.dir === 'asc' ? 'asc' : 'desc'; }
+      restored = !!(st.q || Object.keys(st.filters).length);
+    }
+  }
+  const remember = () => setJSON(memKey, { q: st.q, filters: st.filters, sort: st.sort, dir: st.dir });
 
   const canNew = meta.canCreate !== false;
   mount(root, html`<div class="fade-in">
     <header class="page-head"><div class="titles"><div class="eyebrow">${cfg.eyebrow}</div><h1>${cfg.title}</h1><p>${cfg.desc}</p></div>
       <div class="page-actions">${canNew ? html`<button class="btn primary lg" id="newBtn">${icon('plus', 20)}${cfg.newText}</button>` : ''}</div></header>
     <section class="card">
-      <div class="toolbar"><label class="search">${icon('search', 18)}<input id="q" type="search" placeholder="Search ${meta.plural.toLowerCase()}…" autocomplete="off"/></label><div class="filters" id="filters"></div></div>
+      <div class="toolbar"><label class="search">${icon('search', 18)}<input id="q" type="search" placeholder="Search ${meta.plural.toLowerCase()}…" autocomplete="off" aria-label="Search ${meta.plural.toLowerCase()}" value="${st.q}"/></label><div class="filters" id="filters"></div></div>
+      <div id="memo"></div>
       <div id="tbl">${skeletonRows(8)}</div><div id="pager" class="pager"></div>
     </section></div>`);
 
@@ -142,22 +159,36 @@ export default async function render(root, params, entKey) {
       html`<button class="fchip ${cur === o ? 'on' : ''}" data-f="${o}">${o}${st.facets && st.facets[o] !== undefined ? html` <small>${st.facets[o]}</small>` : ''}</button>`)}`);
   };
 
+  /* HCI-R8 + R7: tell the user their previous filters were restored, and let them reset in one click */
+  const drawMemo = () => {
+    const box = $('#memo', root); if (!box) return;
+    const active = st.q || Object.keys(st.filters).length;
+    box.innerHTML = restored && active ? String(html`<div class="hci-memo">${icon('history', 16)}<span>Showing your last view${st.q ? html` · search “<b>${st.q}</b>”` : ''}${Object.values(st.filters).map((v) => html` · <b>${v}</b>`)}</span><button type="button" class="linkish" data-reset-view>Reset filters</button></div>`) : '';
+  };
   const drawTable = () => {
     const box = $('#tbl', root);
+    drawMemo();
     if (!st.rows.length) {
       box.innerHTML = String(emptyState({ icon: 'search', title: 'Nothing found', text: st.q || Object.keys(st.filters).length ? 'Try a different search or clear the filters.' : `No ${meta.plural.toLowerCase()} yet.` }));
       $('#pager', root).innerHTML = ''; return;
     }
-    box.innerHTML = String(html`<div class="table-wrap"><table class="t"><thead><tr>${cfg.cols.map((c) => html`<th class="${c.sort ? 'sortable' : ''} ${st.sort === c.sort ? 'sorted' : ''}" ${c.sort ? raw(`data-sort="${c.sort}"`) : ''}>${c.label}${c.sort ? html`<span class="sort-ar">${st.sort === c.sort ? (st.dir === 'asc' ? '↑' : '↓') : '↕'}</span>` : ''}</th>`)}<th></th></tr></thead>
-      <tbody>${st.rows.map((r, i) => html`<tr class="click" data-i="${i}">${cfg.cols.map((c) => html`<td>${c.render(r)}</td>`)}
-        <td class="act"><button class="icon-btn" data-edit="${i}" aria-label="Edit" title="Edit">${icon('edit', 18)}</button>${meta.canDelete ? html`<button class="icon-btn danger" data-del="${i}" aria-label="Delete" title="Delete">${icon('trash', 18)}</button>` : ''}</td></tr>`)}</tbody></table></div>`);
+    box.innerHTML = String(html`<div class="table-wrap"><table class="t"><thead><tr>${cfg.cols.map((c) => html`<th class="${c.sort ? 'sortable' : ''} ${st.sort === c.sort ? 'sorted' : ''}" ${c.sort ? raw(`data-sort="${c.sort}" tabindex="0" aria-sort="${st.sort === c.sort ? (st.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"`) : ''}>${c.label}${c.sort ? html`<span class="sort-ar">${st.sort === c.sort ? (st.dir === 'asc' ? '↑' : '↓') : '↕'}</span>` : ''}</th>`)}<th></th></tr></thead>
+      <tbody>${st.rows.map((r, i) => html`<tr class="click" data-i="${i}" tabindex="0" aria-label="Open ${cfg.label(r)}">${cfg.cols.map((c) => html`<td>${c.render(r)}</td>`)}
+        <td class="act"><button class="icon-btn" data-edit="${i}" aria-label="Edit ${cfg.label(r)}" title="Edit">${icon('edit', 18)}</button>${meta.canDelete ? html`<button class="icon-btn danger" data-del="${i}" aria-label="Delete ${cfg.label(r)}" title="Delete (you can undo)">${icon('trash', 18)}</button>` : ''}</td></tr>`)}</tbody></table></div>`);
+    /* HCI-R4: flash + scroll to the row that was just created, edited or restored */
+    const hit = takeTouched(entKey);
+    if (hit !== null) {
+      const i = st.rows.findIndex((r) => String(r[meta.pk]) === hit);
+      const tr = i >= 0 ? $(`tr[data-i="${i}"]`, box) : null;
+      if (tr) { tr.classList.add('hci-flash'); tr.scrollIntoView({ block: 'center', behavior: prefs.motion === 'off' ? 'auto' : 'smooth' }); setTimeout(() => tr.classList.remove('hci-flash'), 2600); }
+    }
     const pages = Math.max(1, Math.ceil(st.total / st.pageSize));
     const from = (st.page - 1) * st.pageSize + 1; const to = Math.min(st.total, st.page * st.pageSize);
     const nums = []; for (let p = Math.max(1, st.page - 2); p <= Math.min(pages, st.page + 2); p++) nums.push(p);
     $('#pager', root).innerHTML = String(html`<span>Showing <b>${from}–${to}</b> of <b>${fnum(st.total)}</b></span><span style="flex:1"></span>
-      <button class="pg" data-p="${st.page - 1}" ${st.page === 1 ? 'disabled' : ''} aria-label="Previous">${icon('chevronL', 16)}</button>
-      ${nums.map((p) => html`<button class="pg ${p === st.page ? 'on' : ''}" data-p="${p}">${p}</button>`)}
-      <button class="pg" data-p="${st.page + 1}" ${st.page >= pages ? 'disabled' : ''} aria-label="Next">${icon('chevronR', 16)}</button>`);
+      <button class="pg" data-p="${st.page - 1}" ${st.page === 1 ? 'disabled' : ''} aria-label="Previous page" title="Previous page">${icon('chevronL', 16)}</button>
+      ${nums.map((p) => html`<button class="pg ${p === st.page ? 'on' : ''}" data-p="${p}" aria-label="Page ${p}" ${p === st.page ? raw('aria-current="page"') : ''}>${p}</button>`)}
+      <button class="pg" data-p="${st.page + 1}" ${st.page >= pages ? 'disabled' : ''} aria-label="Next page" title="Next page">${icon('chevronR', 16)}</button>`);
   };
 
   let seq = 0;
@@ -167,21 +198,28 @@ export default async function render(root, params, entKey) {
       const f = Object.fromEntries(Object.entries(st.filters).map(([k, v]) => [`f_${k}`, v]));
       const r = await api.get(`/${meta.key}${qs({ q: st.q, page: st.page, pageSize: st.pageSize, sort: st.sort, dir: st.dir, ...f })}`);
       if (my !== seq) return;
-      Object.assign(st, { rows: r.rows, total: r.total, facets: r.facets });
+      /* HCI-R6: rows waiting on an Undo toast are hidden straight away */
+      const rows = r.rows.filter((x) => !isPendingDelete(entKey, x[meta.pk]));
+      Object.assign(st, { rows, total: Math.max(0, r.total - (r.rows.length - rows.length)), facets: r.facets });
       if (st.page > 1 && !r.rows.length) { st.page = 1; return load(); }
       drawFilters(); drawTable();
     } catch (e) { toastError(e); }
   };
 
-  $('#q', root).addEventListener('input', debounce((e) => { st.q = e.target.value.trim(); st.page = 1; load(); }, 250));
-  on(root, 'click', '[data-f]', (e, el) => { if (el.dataset.f) st.filters[fcol] = el.dataset.f; else delete st.filters[fcol]; st.page = 1; load(); });
-  on(root, 'click', '[data-p]', (e, el) => { if (el.disabled) return; st.page = Number(el.dataset.p); load(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  $('#q', root).addEventListener('input', debounce((e) => { st.q = e.target.value.trim(); st.page = 1; restored = false; remember(); load(); }, 250));
+  on(root, 'click', '[data-f]', (e, el) => { if (el.dataset.f) st.filters[fcol] = el.dataset.f; else delete st.filters[fcol]; st.page = 1; restored = false; remember(); load(); });
+  on(root, 'click', '[data-reset-view]', () => { st.q = ''; st.filters = {}; st.page = 1; restored = false; $('#q', root).value = ''; remember(); load(); });
+  on(root, 'click', '[data-p]', (e, el) => { if (el.disabled) return; st.page = Number(el.dataset.p); load(); window.scrollTo({ top: 0, behavior: prefs.motion === 'off' ? 'auto' : 'smooth' }); });
   on(root, 'click', 'th[data-sort]', (e, el) => {
-    const k = el.dataset.sort; if (st.sort === k) st.dir = st.dir === 'asc' ? 'desc' : 'asc'; else { st.sort = k; st.dir = 'asc'; } load();
+    const k = el.dataset.sort; if (st.sort === k) st.dir = st.dir === 'asc' ? 'desc' : 'asc'; else { st.sort = k; st.dir = 'asc'; } remember(); load();
   });
+
+  /* HCI-R2: sortable headers work from the keyboard too */
+  on(root, 'keydown', 'th[data-sort]', (e, el) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
   on(root, 'click', '[data-edit]', (e, el) => { e.stopPropagation(); editRecord(entKey, st.rows[el.dataset.edit]); });
   on(root, 'click', '[data-del]', (e, el) => { e.stopPropagation(); const r = st.rows[el.dataset.del]; deleteRecord(entKey, r, cfg.label(r)); });
   on(root, 'click', 'tr[data-i]', (e, el) => cfg.open(st.rows[el.dataset.i]));
+  on(root, 'keydown', 'tr[data-i]', (e, el) => { if (e.key === 'Enter' && e.target === el) cfg.open(st.rows[el.dataset.i]); });   // HCI-R2: rows open with Enter
   const nb = $('#newBtn', root); if (nb) nb.addEventListener('click', () => createRecord(entKey));
 
   await load();

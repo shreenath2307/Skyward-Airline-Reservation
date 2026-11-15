@@ -107,6 +107,45 @@ const RULES = [
   },
 ];
 
+
+// Live walkthrough: for each rule, the real screen + element to spotlight.
+// route = hash to open, prep = demo action run first (see TOUR_ACTIONS in public/js/rules.js),
+// target = CSS selector of the real element, refs = [file, marker] for the code location.
+const STEPS = {
+  1: [
+    { route: '#/flights', prep: 'reset', target: '.page-head', text: 'Every page opens with the same header pattern — small eyebrow, big title, one-line description and the main action on the right. Compare Flights, Bookings, Passengers…', refs: [['js/main.js', 'HCI-R8: breadcrumb']] },
+    { route: '#/flights', prep: 'openCreate', target: '.layer .sheet-foot', text: 'Every dialog uses one footer helper: Cancel / secondary on the LEFT, the primary action on the RIGHT, with the same verbs everywhere.', refs: [['js/ui.js', 'HCI-R1: one footer helper']] },
+  ],
+  2: [
+    { route: '#/dashboard', prep: 'reset', target: '#nav', text: 'Power users: every section has a keyboard shortcut (g then a letter), shown right next to the menu item. Beginners can just click.', refs: [['js/main.js', 'HCI-R1: shortcut letters'], ['js/hci.js', 'HCI-R2: keyboard shortcuts']] },
+    { prep: 'shortcuts', target: '.layer .sheet', text: 'Press ? anywhere to see every shortcut. Esc always closes the top-most dialog.', refs: [['js/hci.js', 'HCI-R2: keyboard shortcuts'], ['js/ui.js', 'HCI-R2/R7: Esc always']] },
+    { prep: 'reset', target: '.hci-textsize', text: 'A− / A+ change the text size for users who need larger type; the choice is remembered. A skip-to-content link and focus rings support keyboard and screen-reader users.', refs: [['app.html', 'HCI-R2: text size control'], ['app.html', 'HCI-R2: skip link']] },
+  ],
+  3: [
+    { route: '#/dashboard', prep: 'reset', target: '#dbStatus', text: 'Live database status: re-checked every 30 seconds, with a message if the connection drops or comes back.', refs: [['js/main.js', 'HCI-R3: live database status']] },
+    { prep: 'toast', target: '#toasts', text: 'Every save, delete or cancel answers with a clear message and icon. While data loads, a thin progress bar runs along the top and busy buttons show a spinner.', refs: [['js/ui.js', 'HCI-R3: every toast'], ['js/hci.js', 'HCI-R3: top progress bar']] },
+  ],
+  4: [
+    { route: '#/book', prep: 'reset', target: '.stepper', text: 'Booking is one sequence with a clear beginning, middle and end: Flight → Seat → Passenger → Details → Review.', refs: [['js/pages/book.js', 'HCI-R1: wizard footer']] },
+    { route: '#/book', target: '.wiz-main', text: 'It finishes on a dedicated "Booking confirmed" screen with the PNR, seat and amount, plus Print boarding pass / Book another / View booking. Cancellations end with a refund summary.', refs: [['js/pages/book.js', 'HCI-R4: closure'], ['js/forms.js', 'HCI-R4: explicit completion screen']] },
+  ],
+  5: [
+    { route: '#/flights', prep: 'openCreate', target: '.layer .sheet-foot', text: 'Create stays greyed out until every required field is valid, and the footer says how many fields still need attention. Dates and numbers are range-limited (no past departures).', refs: [['js/ui.js', 'HCI-R5: primary button stays disabled'], ['js/forms.js', 'HCI-R5: per-table input constraints']] },
+    { prep: 'dirtyClose', target: '.layer:last-child .sheet', text: 'Typed something and tried to close? You are asked "Discard changes?" with focus on the safe choice, Keep editing.', refs: [['js/ui.js', 'HCI-R5: unsaved-changes guard']] },
+  ],
+  6: [
+    { route: '#/bookings', prep: 'undo', target: '#toasts', text: 'Deleting removes the row straight away and offers UNDO for 6 seconds — the record is only really deleted when the timer runs out. (This one is a demo; nothing was deleted.)', refs: [['js/hci.js', 'HCI-R6: undo-able deletes'], ['js/forms.js', 'HCI-R6']] },
+  ],
+  7: [
+    { route: '#/dashboard', prep: 'settings', target: '#settingsPop', text: 'You decide: theme, text size, motion on/off, how many notifications, and which dashboard sections are shown.', refs: [['js/hci.js', 'HCI-R7: settings popover']] },
+    { prep: 'reset', target: '#toasts, #dbStatus', text: 'Nothing happens behind your back: every message has × and pauses on hover, and the booking wizard never moves forward by itself.', refs: [['js/ui.js', 'HCI-R7: every toast can be dismissed'], ['js/pages/book.js', 'HCI-R7: picking a flight']] },
+  ],
+  8: [
+    { route: '#/dashboard', prep: 'search', target: '#pnrForm', text: 'Recognition, not recall: the search box lists your recent searches and recently viewed bookings.', refs: [['js/hci.js', 'HCI-R8: recent searches']] },
+    { route: '#/book', prep: 'reset', target: '.hci-sum', text: 'The Trip summary keeps the flight, seat, passenger and price on screen through all five steps, so nothing has to be remembered.', refs: [['js/pages/book.js', 'HCI-R8: persistent trip summary']] },
+  ],
+};
+
 const cache = {};
 function locate(file, marker) {
   const lines = cache[file] || (cache[file] = fs.readFileSync(path.join(PUB, file), 'utf8').split(/\r?\n/));
@@ -118,6 +157,7 @@ function locate(file, marker) {
 const out = RULES.map((r) => ({
   n: r.n, title: r.title, def: r.def, try: r.try,
   items: r.items.map(([text, ...refs]) => ({ text, where: refs.map(([f, m]) => locate(f, m)) })),
+  steps: (STEPS[r.n] || []).map(({ refs, ...st }) => ({ ...st, where: refs.map(([f, m]) => locate(f, m)) })),
 }));
 
 const banner = '/* GENERATED by scripts/build-rules.js — do not edit by hand (npm run rules). */\n';

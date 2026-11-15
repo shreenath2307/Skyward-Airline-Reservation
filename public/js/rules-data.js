@@ -41,6 +41,26 @@ export const RULES = [
           "public/app.html:29"
         ]
       }
+    ],
+    "steps": [
+      {
+        "route": "#/flights",
+        "prep": "reset",
+        "target": ".page-head",
+        "text": "Every page opens with the same header pattern — small eyebrow, big title, one-line description and the main action on the right. Compare Flights, Bookings, Passengers…",
+        "where": [
+          "public/js/main.js:119"
+        ]
+      },
+      {
+        "route": "#/flights",
+        "prep": "openCreate",
+        "target": ".layer .sheet-foot",
+        "text": "Every dialog uses one footer helper: Cancel / secondary on the LEFT, the primary action on the RIGHT, with the same verbs everywhere.",
+        "where": [
+          "public/js/ui.js:171"
+        ]
+      }
     ]
   },
   {
@@ -89,6 +109,36 @@ export const RULES = [
           "public/js/pages/crud.js:217"
         ]
       }
+    ],
+    "steps": [
+      {
+        "route": "#/dashboard",
+        "prep": "reset",
+        "target": "#nav",
+        "text": "Power users: every section has a keyboard shortcut (g then a letter), shown right next to the menu item. Beginners can just click.",
+        "where": [
+          "public/js/main.js:35",
+          "public/js/hci.js:62"
+        ]
+      },
+      {
+        "prep": "shortcuts",
+        "target": ".layer .sheet",
+        "text": "Press ? anywhere to see every shortcut. Esc always closes the top-most dialog.",
+        "where": [
+          "public/js/hci.js:62",
+          "public/js/ui.js:163"
+        ]
+      },
+      {
+        "prep": "reset",
+        "target": ".hci-textsize",
+        "text": "A− / A+ change the text size for users who need larger type; the choice is remembered. A skip-to-content link and focus rings support keyboard and screen-reader users.",
+        "where": [
+          "public/app.html:52",
+          "public/app.html:25"
+        ]
+      }
     ]
   },
   {
@@ -125,6 +175,26 @@ export const RULES = [
           "public/js/main.js:73"
         ]
       }
+    ],
+    "steps": [
+      {
+        "route": "#/dashboard",
+        "prep": "reset",
+        "target": "#dbStatus",
+        "text": "Live database status: re-checked every 30 seconds, with a message if the connection drops or comes back.",
+        "where": [
+          "public/js/main.js:73"
+        ]
+      },
+      {
+        "prep": "toast",
+        "target": "#toasts",
+        "text": "Every save, delete or cancel answers with a clear message and icon. While data loads, a thin progress bar runs along the top and busy buttons show a spinner.",
+        "where": [
+          "public/js/ui.js:34",
+          "public/js/hci.js:12"
+        ]
+      }
     ]
   },
   {
@@ -158,6 +228,26 @@ export const RULES = [
         "text": "The row you just created or edited flashes so you can see the result",
         "where": [
           "public/js/hci.js:249"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "route": "#/book",
+        "prep": "reset",
+        "target": ".stepper",
+        "text": "Booking is one sequence with a clear beginning, middle and end: Flight → Seat → Passenger → Details → Review.",
+        "where": [
+          "public/js/pages/book.js:246"
+        ]
+      },
+      {
+        "route": "#/book",
+        "target": ".wiz-main",
+        "text": "It finishes on a dedicated \"Booking confirmed\" screen with the PNR, seat and amount, plus Print boarding pass / Book another / View booking. Cancellations end with a refund summary.",
+        "where": [
+          "public/js/pages/book.js:227",
+          "public/js/forms.js:117"
         ]
       }
     ]
@@ -208,6 +298,26 @@ export const RULES = [
           "public/js/forms.js:164"
         ]
       }
+    ],
+    "steps": [
+      {
+        "route": "#/flights",
+        "prep": "openCreate",
+        "target": ".layer .sheet-foot",
+        "text": "Create stays greyed out until every required field is valid, and the footer says how many fields still need attention. Dates and numbers are range-limited (no past departures).",
+        "where": [
+          "public/js/ui.js:554",
+          "public/js/forms.js:44"
+        ]
+      },
+      {
+        "prep": "dirtyClose",
+        "target": ".layer:last-child .sheet",
+        "text": "Typed something and tried to close? You are asked \"Discard changes?\" with focus on the safe choice, Keep editing.",
+        "where": [
+          "public/js/ui.js:571"
+        ]
+      }
     ]
   },
   {
@@ -243,6 +353,18 @@ export const RULES = [
         "text": "Back in the wizard keeps every choice already made",
         "where": [
           "public/js/pages/book.js:256"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "route": "#/bookings",
+        "prep": "undo",
+        "target": "#toasts",
+        "text": "Deleting removes the row straight away and offers UNDO for 6 seconds — the record is only really deleted when the timer runs out. (This one is a demo; nothing was deleted.)",
+        "where": [
+          "public/js/hci.js:208",
+          "public/js/forms.js:170"
         ]
       }
     ]
@@ -286,6 +408,26 @@ export const RULES = [
           "public/js/landing.js:11"
         ]
       }
+    ],
+    "steps": [
+      {
+        "route": "#/dashboard",
+        "prep": "settings",
+        "target": "#settingsPop",
+        "text": "You decide: theme, text size, motion on/off, how many notifications, and which dashboard sections are shown.",
+        "where": [
+          "public/js/hci.js:129"
+        ]
+      },
+      {
+        "prep": "reset",
+        "target": "#toasts, #dbStatus",
+        "text": "Nothing happens behind your back: every message has × and pauses on hover, and the booking wizard never moves forward by itself.",
+        "where": [
+          "public/js/ui.js:59",
+          "public/js/pages/book.js:259"
+        ]
+      }
     ]
   },
   {
@@ -320,6 +462,26 @@ export const RULES = [
         "where": [
           "public/js/main.js:119",
           "public/js/drawers.js:95"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "route": "#/dashboard",
+        "prep": "search",
+        "target": "#pnrForm",
+        "text": "Recognition, not recall: the search box lists your recent searches and recently viewed bookings.",
+        "where": [
+          "public/js/hci.js:259"
+        ]
+      },
+      {
+        "route": "#/book",
+        "prep": "reset",
+        "target": ".hci-sum",
+        "text": "The Trip summary keeps the flight, seat, passenger and price on screen through all five steps, so nothing has to be remembered.",
+        "where": [
+          "public/js/pages/book.js:57"
         ]
       }
     ]

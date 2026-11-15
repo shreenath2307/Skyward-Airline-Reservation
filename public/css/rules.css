@@ -1,37 +1,36 @@
-/* 8 Golden Rules tour (js/rules.js) */
+/* 8 Golden Rules live walkthrough (js/rules.js): spotlight on the real element + coach card */
 .rules-btn { gap: 6px; border-radius: var(--pill, 999px); white-space: nowrap; }
-.rules-dots { list-style: none; display: flex; gap: 6px; padding: 0; margin: 0 0 18px; flex-wrap: wrap; }
-.rules-dots button {
-  width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line-strong, #dccdb6);
-  background: transparent; color: var(--muted, #5e5552); font: 600 12px/1 var(--display, 'Unbounded', sans-serif); cursor: pointer;
-  transition: background .2s, color .2s, border-color .2s;
+
+.tour-spot {
+  position: fixed; z-index: 2000; pointer-events: none; border-radius: 14px;
+  box-shadow: 0 0 0 3px var(--sky-light, #8FC2D7), 0 0 0 9999px rgba(5, 5, 5, .55);
+  transition: left .35s cubic-bezier(.2,.7,.2,1), top .35s cubic-bezier(.2,.7,.2,1), width .35s cubic-bezier(.2,.7,.2,1), height .35s cubic-bezier(.2,.7,.2,1);
 }
-.rules-dots button.seen { border-color: var(--sky-light, #8FC2D7); color: var(--sky-deep, #015AA9); }
-.rules-dots button.on { background: var(--primary, #015AA9); border-color: var(--primary, #015AA9); color: var(--primary-ink, #fff); }
-.rules-dots button:hover:not(.on) { border-color: var(--primary, #015AA9); }
-.rules-head { display: flex; gap: 18px; align-items: flex-start; }
-.rules-num { font: 600 52px/0.9 var(--display, 'Unbounded', sans-serif); letter-spacing: -0.06em; color: var(--primary, #015AA9); flex: none; }
-.rules-head h3 { font-family: var(--display, 'Unbounded', sans-serif); font-size: 22px; letter-spacing: -0.03em; margin: 4px 0 6px; }
-.rules-def { margin: 0; color: var(--muted, #5e5552); max-width: 60ch; }
-.rules-sub { margin: 22px 0 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted, #5e5552); }
-.rules-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line, #eee2cf); }
-.rules-list li { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line, #eee2cf); }
-.rules-tick { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-soft, #e3edff); color: var(--primary, #015AA9); margin-top: 1px; }
-.rules-where { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.rules-where code { font: 12px/1.3 var(--mono, Consolas, monospace); padding: 3px 8px; border-radius: 6px; background: var(--surface-2, #f4f7fc); color: var(--primary, #015AA9); border: 1px solid var(--line, #eee2cf); }
-.rules-count { text-align: center; font-size: 12px; color: var(--muted, #5e5552); font-variant-numeric: tabular-nums; }
-.rules-tour { animation: rules-in .25s ease; }
-@keyframes rules-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .rules-tour { animation: none; } }
-.reduce-motion .rules-tour { animation: none; }
-@media (max-width: 720px) {
-  .rules-btn span { display: none; }
-  .sheet-foot:has([data-try]) { flex-wrap: wrap; }
-  .sheet-foot [data-try] { order: -1; flex: 1 1 100%; justify-content: center; white-space: normal; }
-  .sheet-foot:has([data-try]) [data-prev], .sheet-foot:has([data-try]) [data-next] { flex: 1; justify-content: center; }
-  .sheet-foot:has([data-try]) .rules-count { display: none; }
-  .rules-num { font-size: 36px; }
-  .rules-head h3 { font-size: 18px; }
+.tour-card {
+  position: fixed; z-index: 2001; width: min(420px, calc(100vw - 24px));
+  background: var(--surface, #fffdf8); color: var(--text, #171717);
+  border: 1px solid var(--line, #eee2cf); border-radius: 18px; padding: 18px 18px 14px;
+  box-shadow: 0 30px 70px -20px rgba(5, 5, 5, .55);
+  transition: left .35s cubic-bezier(.2,.7,.2,1), top .35s cubic-bezier(.2,.7,.2,1), opacity .2s;
 }
-/* landing page entry button */
-.pill--rules { gap: 8px; }
+.tour-card.moving { opacity: .55; }
+.tour-top { display: flex; gap: 12px; align-items: flex-start; }
+.tour-num { font: 600 34px/0.9 var(--display, 'Unbounded', sans-serif); letter-spacing: -0.06em; color: var(--primary, #015AA9); flex: none; }
+.tour-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted, #5e5552); }
+.tour-title { font: 600 17px/1.15 var(--display, 'Unbounded', sans-serif); letter-spacing: -0.03em; margin: 4px 0 0; }
+.tour-x { margin-left: auto; border: 0; background: transparent; color: var(--muted, #5e5552); cursor: pointer; padding: 4px; border-radius: 8px; }
+.tour-x:hover { background: var(--surface-2, #f4f7fc); }
+.tour-text { margin: 12px 0 10px; font-size: 13.5px; line-height: 1.5; }
+.tour-where { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted, #5e5552); }
+.tour-where span { margin-right: 2px; }
+.tour-where code { font: 11.5px/1.3 var(--mono, Consolas, monospace); letter-spacing: 0; text-transform: none; padding: 3px 7px; border-radius: 6px; background: var(--surface-2, #f4f7fc); color: var(--primary, #015AA9); border: 1px solid var(--line, #eee2cf); }
+.tour-dots { display: flex; gap: 5px; margin: 14px 0 12px; }
+.tour-dots button { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line-strong, #dccdb6); background: transparent; color: var(--muted, #5e5552); font: 600 10px/1 var(--display, 'Unbounded', sans-serif); cursor: pointer; padding: 0; }
+.tour-dots button.seen { border-color: var(--sky-light, #8FC2D7); color: var(--sky-deep, #015AA9); }
+.tour-dots button.on { background: var(--primary, #015AA9); border-color: var(--primary, #015AA9); color: var(--primary-ink, #fff); }
+.tour-foot { display: flex; gap: 8px; align-items: center; }
+.tour-foot .grow { flex: 1; }
+.reduce-motion .tour-spot, .reduce-motion .tour-card { transition: none; }
+@media (prefers-reduced-motion: reduce) { .tour-spot, .tour-card { transition: none; } }
+@media (max-width: 720px) { .rules-btn span { display: none; } }
+@media (max-width: 640px) { .tour-card { width: auto; } .tour-dots button { width: 22px; height: 22px; } }
